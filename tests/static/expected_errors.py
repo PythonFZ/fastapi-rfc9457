@@ -16,6 +16,7 @@ class OutOfCredit(Problem):
 
 OutOfCredit(detail="x")  # reportCallIssue: missing balance, accounts
 OutOfCredit(balance="lots", accounts=[])  # reportArgumentType: balance is int
+OutOfCredit(status=404)  # status can not be set dynamically.
 
 
 class BadStatus(Problem):
