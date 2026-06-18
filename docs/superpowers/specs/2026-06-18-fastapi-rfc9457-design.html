@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fastapi-rfc9457 — Design Spec</title>
+<link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f7f8fa; --ink:#1b1f24; --muted:#5b6470;
+    --accent:#3a5bd9; --accent-soft:#eaeefb; --border:#e3e7ec; --ok:#1a7f4b;
+    --warn:#b4690e; --code-bg:#f6f8fa; --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{display:grid;grid-template-columns:280px minmax(0,1fr);gap:0;max-width:1440px;margin:0 auto;}
+  /* sidebar */
+  nav{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;padding:28px 20px;
+    border-right:1px solid var(--border);background:var(--panel);font-size:13.5px;}
+  nav h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;}
+  nav a{display:block;color:var(--ink);text-decoration:none;padding:3px 8px;border-radius:6px;}
+  nav a:hover{background:var(--accent-soft);color:var(--accent)}
+  nav .brand{font-weight:700;font-size:15px;margin-bottom:2px}
+  nav .brand small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+  /* content */
+  main{padding:44px 56px 120px;max-width:1040px}
+  h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+  .sub{color:var(--muted);margin:0 0 22px}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 28px}
+  .badge{background:var(--accent-soft);color:var(--accent);border-radius:999px;
+    padding:3px 11px;font-size:12.5px;font-weight:600}
+  .badge.ok{background:#e6f5ec;color:var(--ok)}
+  h2{font-size:22px;margin:46px 0 10px;padding-top:8px;border-top:1px solid var(--border)}
+  h3{font-size:17px;margin:26px 0 8px}
+  h4{font-size:14.5px;margin:18px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  p,li{color:var(--ink)}
+  code{font-family:var(--mono);font-size:.88em;background:var(--code-bg);
+    padding:1px 5px;border-radius:5px;border:1px solid var(--border)}
+  pre{background:var(--code-bg)!important;border:1px solid var(--border);border-radius:10px;
+    padding:14px 16px;overflow:auto;font-size:13px;margin:12px 0}
+  pre code{background:none;border:none;padding:0;font-size:13px}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel);font-weight:600}
+  td code{font-size:.86em}
+  .note{border-left:3px solid var(--accent);background:var(--accent-soft);
+    padding:10px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .verified{border-left:3px solid var(--ok);background:#e9f6ee;padding:10px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .warn{border-left:3px solid var(--warn);background:#fbf1e3;padding:10px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .pill{display:inline-block;font-size:11px;font-weight:700;border-radius:5px;padding:1px 7px;vertical-align:middle}
+  .pill.rec{background:#e6f5ec;color:var(--ok)}
+  .pill.no{background:#fbe9e9;color:#b42318}
+  ul.tight{margin:8px 0;padding-left:22px}
+  ul.tight li{margin:3px 0}
+  .mermaid{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px;margin:14px 0;text-align:center}
+  .kicker{color:var(--accent);font-weight:700;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase}
+  hr{border:none;border-top:1px solid var(--border);margin:30px 0}
+  @media (max-width:900px){.wrap{grid-template-columns:1fr}nav{display:none}main{padding:28px 20px}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <div class="brand">fastapi-rfc9457<small>Design Spec · 2026-06-18</small></div>
+  <h2>Contents</h2>
+  <a href="#summary">1 · Summary &amp; positioning</a>
+  <a href="#scope">2 · Goals &amp; non-goals</a>
+  <a href="#decisions">3 · Key decisions (verified)</a>
+  <a href="#layout">4 · Package layout</a>
+  <a href="#models">5 · Core models</a>
+  <a href="#typeuri">6 · Type-URI strategy</a>
+  <a href="#api">7 · Public API</a>
+  <a href="#handlers">8 · Exception handling</a>
+  <a href="#validation">9 · Validation → errors[]</a>
+  <a href="#immutability">10 · Immutability &amp; state safety</a>
+  <a href="#openapi">11 · OpenAPI integration</a>
+  <a href="#client">12 · Client-side parsing</a>
+  <a href="#docs">13 · Type-doc router</a>
+  <a href="#config">14 · Configuration</a>
+  <a href="#lifespan">15 · Lifespan composition</a>
+  <a href="#packaging">16 · Tooling &amp; packaging</a>
+  <a href="#testing">17 · Testing strategy</a>
+  <a href="#risks">18 · Risks &amp; open items</a>
+</nav>
+
+<main>
+<span class="kicker">Implementation Spec</span>
+<h1>fastapi-rfc9457</h1>
+<p class="sub">Typed, batteries-included RFC 9457 “Problem Details for HTTP APIs” integration for the latest FastAPI &amp; Pydantic v2.</p>
+<div class="badges">
+  <span class="badge ok">Status: approved for planning</span>
+  <span class="badge">FastAPI ≥ 0.137</span>
+  <span class="badge">Pydantic ≥ 2.13</span>
+  <span class="badge">Python ≥ 3.11</span>
+  <span class="badge">hatch-vcs</span>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="summary">1 · Summary &amp; positioning</h2>
+<p><strong>fastapi-rfc9457</strong> is a reusable package that makes a FastAPI app emit
+<a href="https://www.rfc-editor.org/rfc/rfc9457.html">RFC 9457</a>
+<code>application/problem+json</code> error bodies with one call, and lets you declare each
+error condition as a small typed class whose extension members are validated and documented.</p>
+
+<p>The market today is a two-horse race, and neither horse fills the whole field:</p>
+<table>
+<thead><tr><th>Library</th><th>Maint.</th><th>Pydantic v2</th><th>Typed, validated extension members</th><th>Auto per-route OpenAPI (problem+json)</th><th>Client-side parsing</th></tr></thead>
+<tbody>
+<tr><td><code>fastapi-problem</code> (NRWLDev)</td><td>active</td><td class="pill no">no (multidict)</td><td class="pill no">no (kwargs)</td><td>partial</td><td class="pill no">no</td></tr>
+<tr><td><code>fastapi-problem-details</code> (g0di)</td><td>light, pre-1.0</td><td class="pill rec">yes</td><td class="pill no">no (unvalidated)</td><td>best of the two</td><td class="pill no">no</td></tr>
+<tr><td><strong>fastapi-rfc9457</strong> (this)</td><td>new</td><td class="pill rec">yes</td><td class="pill rec">yes</td><td class="pill rec">yes (validated)</td><td class="pill rec">yes</td></tr>
+</tbody>
+</table>
+<p>FastAPI itself lists “Errors based on RFC 9457” on its roadmap
+(<a href="https://github.com/fastapi/fastapi/issues/10370">issue #10370</a>, not started). Our differentiated
+whitespace: <strong>typed + validated extension members that round-trip through serialization, OpenAPI, and
+the client</strong>; automatic per-route OpenAPI registration under the correct media type; and a client-side
+parser — wrapped in a one-call <code>add_problem_details(app)</code> plus an optional composable lifespan.</p>
+
+<!-- ============================================================= -->
+<h2 id="scope">2 · Goals &amp; non-goals</h2>
+<h4>Goals</h4>
+<ul class="tight">
+<li>One-call wiring: <code>add_problem_details(app)</code> registers handlers + OpenAPI registration (fastapi-pagination ergonomics).</li>
+<li>Declare a problem type as a small class; raise it directly; <strong>typed extension members validated at the raise site</strong>.</li>
+<li>Uniform <code>application/problem+json</code> across <em>all</em> errors: our problems, <code>RequestValidationError</code>, <code>HTTPException</code>/<code>StarletteHTTPException</code>, and unhandled <code>Exception</code>.</li>
+<li>Structured 422 bodies that preserve field + list-index mapping (no flattening).</li>
+<li>Accurate per-route OpenAPI under <code>application/problem+json</code>, derived from the types a route declares.</li>
+<li>Dereferenceable <code>type</code> URIs via an optional docs router.</li>
+<li>Client-side parsing of <code>problem+json</code> back into typed problems.</li>
+<li>Modern foundations only: <code>lifespan</code>, <code>Annotated</code>, Pydantic v2; <code>hatch-vcs</code> packaging.</li>
+</ul>
+<h4>Non-goals (YAGNI)</h4>
+<ul class="tight">
+<li>No framework-agnostic core for Starlette/Litestar/Flask in v1 — FastAPI-first. (A pure core can be factored out later if demand appears.)</li>
+<li>No i18n/localization of <code>title</code>/<code>detail</code>.</li>
+<li>No problem-type <em>registry persistence</em> or remote type catalogs.</li>
+<li>No middleware-based interception — exception handlers only (the field consensus; middleware is the abandoned pattern).</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="decisions">3 · Key decisions (empirically verified)</h2>
+<p>Each of these was checked against the real FastAPI 0.137 / Pydantic 2.13 in the project venv, not assumed.</p>
+<table>
+<thead><tr><th>Decision</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>Problem types are <strong>frozen Pydantic dataclasses that subclass <code>Exception</code></strong> — raised directly (<code>raise OutOfCredit(...)</code>).</td>
+<td><code>class Problem(BaseModel, Exception)</code> fails at runtime: <em>“multiple bases have instance lay-out conflict.”</em> A pydantic <code>@dataclass(kw_only=True)</code> subclassing <code>Exception</code> raises cleanly and produces a JSON schema via <code>TypeAdapter</code>.</td></tr>
+<tr><td><code>title</code>/<code>status</code> are <code>ClassVar</code>s; extension members are real fields.</td>
+<td>pyright flags <code>status = "nope"</code> as <code>reportAssignmentType</code>; flags a missing/mistyped extension member at construction (<code>reportCallIssue</code> / <code>reportArgumentType</code>); reveals <code>.balance</code> as <code>int</code>.</td></tr>
+<tr><td>The terse <code>class P(Problem, title=..., status=...)</code> form is <strong>rejected</strong>.</td>
+<td>Pydantic’s metaclass owns class keyword args; <code>title</code> collides with Pydantic’s reserved config key and the real type error drowns in ~48 spurious ones; it also raises <code>TypeError</code> at runtime.</td></tr>
+<tr><td><code>frozen=True</code> is the default for problem classes.</td>
+<td>A frozen pydantic-dataclass exception raises fine (twice), <code>raise … from …</code> sets <code>__cause__</code>, <code>__traceback__</code> is populated, and post-construction mutation raises <code>FrozenInstanceError</code>.</td></tr>
+<tr><td>Accurate <code>problem+json</code> OpenAPI needs the one-time <code>app.openapi</code> component registration.</td>
+<td>In a live OpenAPI dump: <code>{"model": X}</code> documents <code>application/json</code> only; <code>{"model": X, "content": {problem+json:{}}}</code> yields a messy dual media type with the schema on the JSON one; the clean single <code>problem+json</code> + <code>$ref</code> needs the component registered.</td></tr>
+</tbody>
+</table>
+
+<!-- ============================================================= -->
+<h2 id="layout">4 · Package layout</h2>
+<p><code>src/</code>-layout, git-tag versioning via <code>hatch-vcs</code>.</p>
+<pre><code>src/fastapi_rfc9457/
+  __init__.py      # public re-exports + __version__ (importlib.metadata)
+  _version.py      # hatch-vcs generated, git-ignored
+  models.py        # ProblemDetail — the canonical wire model (BaseModel, extra="allow")
+  problem.py       # Problem base (frozen pydantic dataclass + Exception) + registry + ProblemError
+  builtins.py      # built-in types (NotFound, Forbidden, Conflict, …) + ValidationProblem / InvalidParam
+  handlers.py      # the four exception handlers + the wire-model builder
+  openapi.py       # problems(*types) responses helper + component registration
+  docs.py          # build_docs_router(config) — dereferenceable type-URI pages
+  client.py        # parse_problem / raise_for_problem / httpx hook
+  config.py        # ProblemConfig
+  integration.py   # add_problem_details(app, config) + problem_details_lifespan
+tests/
+  test_*.py        # runtime (TestClient) behaviour tests
+  static/          # pyright-checked files asserting the typing guarantees
+</code></pre>
+<p>Each module has one clear purpose and a small interface, so it can be understood and tested in isolation.</p>
+
+<!-- ============================================================= -->
+<h2 id="models">5 · Core models</h2>
+<p>Two models, cleanly separated: an <em>authoring</em> surface and a <em>wire</em> surface.</p>
+
+<h3>5.1 Wire model — <code>ProblemDetail</code></h3>
+<p>The canonical serialized shape, and what generic client parsing produces.</p>
+<pre><code class="language-python">class ProblemDetail(BaseModel):
+    model_config = ConfigDict(extra="allow")     # carry unknown extension members on the wire
+    type:     str = "about:blank"
+    title:    str
+    status:   int
+    detail:   str | None = None
+    instance: str | None = None</code></pre>
+<p>Serialized with <code>model_dump_json(exclude_none=True)</code> — verified to drop unset standard members while keeping extension members — and emitted with media type <code>application/problem+json</code>.</p>
+
+<h3>5.2 Authoring surface — <code>Problem</code></h3>
+<p>A frozen Pydantic dataclass that subclasses <code>Exception</code>. <code>title</code>/<code>status</code> are <code>ClassVar</code>s
+declared on the base (so the type checker validates subclass assignments); extension members are real typed fields.</p>
+<pre><code class="language-python">from fastapi_rfc9457 import Problem
+
+class OutOfCredit(Problem):
+    """The account does not have enough credit."""   # docstring → OpenAPI description + docs page
+    title  = "Out of Credit"                          # checked against ClassVar[str] on the base
+    status = 403                                       # checked against ClassVar[int] on the base
+    balance:  int                                      # typed extension members (RFC 9457 §3.2)
+    accounts: list[str]
+
+# raise it directly — extension members are statically type-checked:
+raise OutOfCredit(detail="Not enough credit.", balance=30, accounts=["/acct/12"])</code></pre>
+
+<div class="verified"><strong>Verified statically (pyright):</strong>
+<code>OutOfCredit(detail="x")</code> → <em>“Arguments missing for parameters balance, accounts”</em>;
+<code>balance="lots"</code> → wrong-type error; <code>status = "nope"</code> → assignment-type error;
+<code>.balance</code> reveals as <code>int</code>.</div>
+
+<p>Subclasses require <strong>no decorator</strong>: <code>Problem</code> carries the dataclass machinery and is marked
+with <code>@dataclass_transform</code> so the checker treats every subclass as a (kw-only, frozen) dataclass, while
+<code>__init_subclass__</code> registers the type. The base, schematically:</p>
+<pre><code class="language-python">@dataclass_transform(kw_only_default=True, frozen_default=True)
+class _ProblemMeta(type): ...        # or a re-exported decorator; mechanism pinned in §18
+
+@pydantic.dataclasses.dataclass(kw_only=True, frozen=True)
+class Problem(Exception, metaclass=_ProblemMeta):
+    title:    ClassVar[str]
+    status:   ClassVar[int]
+    type:     ClassVar[str | None] = None   # optional per-type override of the derived type URI
+    detail:   str | None = None
+    instance: str | None = None
+
+    def __init_subclass__(cls, **kw): ...   # apply dataclass processing + register in the type registry</code></pre>
+<div class="note">The exact zero-boilerplate mechanism (custom metaclass vs. a re-exported <code>@problem</code> decorator) is the single
+open implementation item — it ships only after a pyright test proves subclasses keep full field checking. See §18.</div>
+
+<!-- ============================================================= -->
+<h2 id="typeuri">6 · Type-URI strategy</h2>
+<ul class="tight">
+<li>Default <code>type</code> = <code>{config.base_url}/{kebab-id}</code>, where <em>kebab-id</em> is the class name minus a trailing <code>Problem</code>/<code>Error</code>, lower-kebab-cased → <code>OutOfCredit</code> ⇒ <code>/problems/out-of-credit</code>.</li>
+<li><code>config.base_url</code> defaults to <code>/problems</code>; may be an absolute URL (<code>https://api.example.com/problems</code>) or overridden per type via the <code>type</code> ClassVar.</li>
+<li>Because the package ships a docs router, the default <code>type</code> is dereferenceable (the RFC’s intent) rather than <code>about:blank</code>.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="api">7 · Public API</h2>
+<table>
+<thead><tr><th>Symbol</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>add_problem_details(app, config=None)</code></td><td>One-call wiring: registers the four handlers + OpenAPI component registration; optionally includes the docs router. Idempotent (warns on a second call).</td></tr>
+<tr><td><code>problem_details_lifespan(app)</code></td><td>Optional composable lifespan: startup registry validation + metadata binding + docs-router mount.</td></tr>
+<tr><td><code>problems(*types)</code></td><td>Builds the <code>responses=</code> mapping (a plain, spreadable dict) under <code>application/problem+json</code>.</td></tr>
+<tr><td><code>Problem</code></td><td>Base class for authored problem types.</td></tr>
+<tr><td><code>ProblemDetail</code></td><td>The wire model (also the generic client-parse result).</td></tr>
+<tr><td><code>ProblemError</code></td><td>Fallback exception for problems parsed/raised without a registered type.</td></tr>
+<tr><td><code>ProblemConfig</code></td><td>Configuration object.</td></tr>
+<tr><td><code>parse_problem</code>, <code>raise_for_problem</code>, <code>httpx_raise_hook</code></td><td>Client-side helpers.</td></tr>
+<tr><td><code>build_docs_router(config)</code></td><td>The dereferenceable type-doc router factory.</td></tr>
+<tr><td>built-ins: <code>BadRequest</code>, <code>NotAuthenticated</code>, <code>Forbidden</code>, <code>NotFound</code>, <code>Conflict</code>, <code>UnprocessableContent</code>, <code>TooManyRequests</code>, <code>InternalServerError</code>, … and <code>ValidationProblem</code>/<code>InvalidParam</code></td><td>Ready-to-use types for common statuses.</td></tr>
+</tbody>
+</table>
+
+<h3>7.1 Wiring example</h3>
+<pre><code class="language-python">from fastapi import FastAPI
+from fastapi_rfc9457 import add_problem_details, Problem, problems
+
+class PostNotFound(Problem):
+    """The requested post does not exist."""
+    title  = "Not Found"
+    status = 404
+
+app = FastAPI()
+add_problem_details(app)          # handlers + OpenAPI registration, idempotent
+
+@app.get("/posts/{post_id}", responses=problems(PostNotFound))
+async def get_post(post_id: str) -> PostResponse:
+    post = await store.get(post_id)
+    if post is None:
+        raise PostNotFound(detail=f"Post {post_id} not found")
+    return post</code></pre>
+
+<!-- ============================================================= -->
+<h2 id="handlers">8 · Exception handling</h2>
+<p><code>add_problem_details</code> registers four handlers. Every error on the wire becomes <code>application/problem+json</code>.</p>
+<div class="mermaid">
+flowchart LR
+  A[raise Problem subclass] --> H1[problem_handler]
+  B[RequestValidationError] --> H2[validation_handler]
+  C["HTTPException / StarletteHTTPException"] --> H3[http_handler]
+  D[unhandled Exception] --> H4[unhandled_handler]
+  H1 --> W[build fresh ProblemDetail per request]
+  H2 --> W
+  H3 --> W
+  H4 --> W
+  W --> R["JSONResponse · application/problem+json"]
+</div>
+<table>
+<thead><tr><th>Handler</th><th>Catches</th><th>Produces</th></tr></thead>
+<tbody>
+<tr><td><code>problem_handler</code></td><td><code>Problem</code> (so every authored type)</td><td>Its wire <code>ProblemDetail</code>; auto-fills <code>instance</code> from the request path if unset.</td></tr>
+<tr><td><code>validation_handler</code></td><td><code>RequestValidationError</code></td><td><code>ValidationProblem</code> (422) with a typed <code>errors[]</code> extension — see §9.</td></tr>
+<tr><td><code>http_handler</code></td><td><code>StarletteHTTPException</code> (also covers FastAPI’s <code>HTTPException</code>, a subclass)</td><td>A <code>ProblemDetail</code> with <code>title</code> from the HTTP status phrase. Catches errors raised by Starlette internals and third-party middleware too.</td></tr>
+<tr><td><code>unhandled_handler</code></td><td><code>Exception</code></td><td><code>InternalServerError</code> (500), honoring <code>strip_debug</code>.</td></tr>
+</tbody>
+</table>
+<div class="warn"><strong>Documented caveats (Starlette behavior):</strong> under <code>app.debug=True</code> Starlette renders a traceback page
+<em>instead of</em> invoking the 500 handler, so the <code>problem+json</code> 500 path isn’t exercised in debug; and Starlette
+re-raises the unhandled exception after the handler runs (for logging) — both expected, both noted in the README.</div>
+
+<h3>8.1 The fresh-wire-model invariant</h3>
+<p>Handlers <strong>never mutate the carried exception</strong>. Each request materializes a brand-new <code>ProblemDetail</code>
+from the problem’s <code>ClassVar</code> constants + dataclass fields, and resolves <code>instance</code> on that fresh model. This
+makes module-level/memoized problems and concurrent requests safe by construction (see §10).</p>
+
+<!-- ============================================================= -->
+<h2 id="validation">9 · Validation → <code>errors[]</code> (no flattening)</h2>
+<p>FastAPI’s default 422 is <code>{"detail": [{"loc":…,"msg":…}]}</code>. Flattening that into a single string
+loses the field/index mapping (e.g. which item in a list body failed). We carry the structured errors as a
+<strong>typed RFC 9457 extension member</strong> — dogfooding the typed-extensions feature.</p>
+<pre><code class="language-python">class InvalidParam(BaseModel):
+    loc:     list[str | int]    # faithful FastAPI location, e.g. ["body", 0, "task_name"]
+    pointer: str | None = None  # RFC 6901 convenience, e.g. "/body/0/task_name"
+    detail:  str                # the pydantic message
+    type:    str                # pydantic error code, e.g. "missing"
+    # `input` (the offending value) is attached only when config.strip_debug is False
+
+class ValidationProblem(Problem):
+    """The request failed validation."""
+    title  = "Unprocessable Content"
+    status = 422
+    errors: list[InvalidParam]</code></pre>
+<p>The handler maps <code>exc.errors()</code> 1:1 (no join); <code>detail</code> is a short summary. A list body that fails on items 0 and 2:</p>
+<pre><code class="language-json">{
+  "type": "/problems/validation", "title": "Unprocessable Content", "status": 422,
+  "detail": "Request validation failed (2 errors).",
+  "instance": "/v1/jobs",
+  "errors": [
+    {"loc": ["body", 0, "task_name"], "pointer": "/body/0/task_name", "detail": "Field required", "type": "missing"},
+    {"loc": ["body", 2, "task_name"], "pointer": "/body/2/task_name", "detail": "Field required", "type": "missing"}
+  ]
+}</code></pre>
+<ul class="tight">
+<li><code>loc</code> is authoritative (preserves the list index); <code>pointer</code> is an RFC 6901 convenience. We use <code>loc</code>/<code>pointer</code> rather than RFC 7807’s <code>{name, reason}</code> precisely because <code>name</code> can’t express an array index.</li>
+<li><code>input</code> is gated by <code>strip_debug</code> to avoid leaking submitted values in production.</li>
+<li>Covers query/path/header errors uniformly (<code>loc[0]</code> ∈ {<code>body</code>,<code>query</code>,<code>path</code>,<code>header</code>,<code>cookie</code>}).</li>
+</ul>
+<div class="note"><strong>Adopter-visible change:</strong> this replaces FastAPI’s default 422 <code>application/json</code> body with <code>application/problem+json</code> — intended, since the whole point is a uniform surface. Called out in the README migration notes.</div>
+
+<!-- ============================================================= -->
+<h2 id="immutability">10 · Immutability &amp; shared-state safety</h2>
+<p>A real-world review flagged in-place mutation of <code>instance</code> bleeding across requests when a problem is memoized.
+We close that bug class two ways:</p>
+<ol class="tight">
+<li><strong>Fresh-wire-model invariant (§8.1):</strong> the carried <code>Problem</code> is read-only input; the handler builds a new <code>ProblemDetail</code> per request and sets <code>instance</code> there. No path bleed, no race, even if one problem instance is shared across concurrent requests.</li>
+<li><strong><code>frozen=True</code> default:</strong> post-construction mutation raises <code>FrozenInstanceError</code> (verified), so even buggy code can’t mutate a carried problem. This makes the module-level-constant pattern <em>recommended</em>:</li>
+</ol>
+<pre><code class="language-python">POST_NOT_FOUND = PostNotFound()   # define once, reuse everywhere — frozen makes it correct
+...
+raise POST_NOT_FOUND              # each request still gets its own resolved `instance`</code></pre>
+<p>Per-raise <code>detail</code>/<code>instance</code> are constructor arguments, so nothing is lost. <code>strip_debug</code> likewise redacts into a new wire model, never the source.</p>
+
+<!-- ============================================================= -->
+<h2 id="openapi">11 · OpenAPI integration</h2>
+<h3>11.1 Why <code>add_problem_details</code> registers components</h3>
+<p>A live OpenAPI dump settles the “do we need to touch <code>app.openapi</code>?” question:</p>
+<table>
+<thead><tr><th><code>responses=</code> entry</th><th>Documented media type(s)</th><th>Component registered?</th></tr></thead>
+<tbody>
+<tr><td><code>{"model": ProblemDetail}</code></td><td><code>application/json</code> only</td><td>yes</td></tr>
+<tr><td><code>{"model": …, "content": {problem+json: {}}}</code></td><td>dual: <code>problem+json</code> (empty) + <code>application/json</code> (the <code>$ref</code>)</td><td>yes</td></tr>
+<tr><td><code>{"content": {problem+json: {"schema": {"$ref": …}}}}</code> ✅</td><td><code>application/problem+json</code> only, with <code>$ref</code></td><td>no (needs registration)</td></tr>
+</tbody>
+</table>
+<p>Only the hand-written <code>$ref</code> form documents the correct, single media type — and it needs its component
+registered once. So <code>problems()</code> emits the <code>$ref</code> form, and <code>add_problem_details</code> wraps
+<code>app.openapi</code> to inject <code>ProblemDetail</code> + every registered type’s schema into
+<code>components.schemas</code> (with lazy app-metadata binding, faststream-style). This is the FastAPI-endorsed
+<em>Extending OpenAPI</em> pattern and is idempotent.</p>
+<div class="note">Fallback for adopters who want zero <code>app.openapi</code> wrapping: use <code>model</code>-based responses documented as <code>application/json</code>. We do <em>not</em> default to that — accuracy matters for an RFC 9457 package.</div>
+
+<h3>11.2 <code>problems(*types)</code> — composition</h3>
+<p>Returns a plain dict, so it spreads into any <code>responses=</code>:</p>
+<pre><code class="language-python">responses={**problems(OutOfCredit, PostNotFound), 200: {...}, 503: {"model": SomeOtherLibModel}}</code></pre>
+<ul class="tight">
+<li><strong>Different statuses</strong> → merge cleanly.</li>
+<li><strong>Two of our types at the same status</strong> → merged into one entry: <code>content: {problem+json: {schema: {oneOf: [{$ref: A}, {$ref: B}]}}}</code>, with descriptions joined. (An improvement over the skill, which kept only one <code>$ref</code>.)</li>
+<li><strong>Collision with a non-ours response at the same status</strong> → last-writer-wins, like any dict; the caller merges by hand. <code>problems()</code> stays transparent so they can.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="client">12 · Client-side parsing</h2>
+<p>No competitor offers this. For services/SDKs that <em>consume</em> a problem+json API:</p>
+<pre><code class="language-python">from fastapi_rfc9457 import parse_problem, raise_for_problem
+
+problem = parse_problem(resp)          # -> ProblemDetail (generic; extras preserved)
+                                       #    or the typed Problem subclass if `type` is registered
+raise_for_problem(resp)                # raises the mapped Problem / ProblemError if it's a problem response
+
+import httpx
+client = httpx.Client(event_hooks={"response": [httpx_raise_hook()]})  # auto-raise on problem responses</code></pre>
+<ul class="tight">
+<li><code>parse_problem</code> accepts a response object, dict, or bytes.</li>
+<li>Registry-aware: when <code>type</code> matches a registered type, returns that <strong>typed</strong> instance (extension members restored typed); otherwise a generic <code>ProblemDetail</code>.</li>
+<li>The type→class registry is the same one populated by <code>__init_subclass__</code>.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="docs">13 · Type-doc router</h2>
+<p><code>build_docs_router(config)</code> returns an <code>APIRouter</code> serving <code>GET {base_url}/{kebab-id}</code> for each
+registered type — a human-readable page (HTML + JSON via content negotiation) showing title, status, the docstring,
+and the extension-member schema. Makes <code>type</code> URIs resolve to documentation per the RFC’s intent. Path is
+configurable; <code>include_in_schema</code> toggle so the doc routes don’t clutter the main API schema.</p>
+
+<!-- ============================================================= -->
+<h2 id="config">14 · Configuration — <code>ProblemConfig</code></h2>
+<pre><code class="language-python">class ProblemConfig(BaseModel):
+    base_url:              str  = "/problems"   # type-URI prefix; may be absolute
+    include_docs_router:   bool = True
+    strip_debug:           bool = False         # hide detail/extras/input on 500s and validation in prod
+    instance_from_request: bool = True          # auto-fill `instance` from the request path
+    validation_type:       str  = "validation"  # kebab id for ValidationProblem
+    validation_status:     int  = 422</code></pre>
+<p>Passed to <code>add_problem_details(app, config)</code> and <code>build_docs_router(config)</code>.</p>
+
+<!-- ============================================================= -->
+<h2 id="lifespan">15 · Lifespan composition (the faststream pattern)</h2>
+<p>Handlers and the <code>app.openapi</code> wrap must be eager, so <code>add_problem_details</code> does those. The optional
+<code>problem_details_lifespan</code> adds startup work: <strong>validate the registry</strong> (fail-fast on duplicate
+<code>type</code> URIs or missing <code>title</code>/<code>status</code>), bind app metadata, and mount the docs router. It
+composes with the user’s own lifespan exactly as faststream does — user lifespan outer, ours nested:</p>
+<pre><code class="language-python">from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi_rfc9457 import add_problem_details, problem_details_lifespan
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with problem_details_lifespan(app):   # nests inside your own startup/shutdown
+        # ... your resources ...
+        yield
+
+app = FastAPI(lifespan=lifespan)
+add_problem_details(app)</code></pre>
+<p>Use either or both: <code>add_problem_details</code> alone is sufficient for most apps; add the lifespan when you want startup validation / docs mounting.</p>
+
+<!-- ============================================================= -->
+<h2 id="packaging">16 · Tooling &amp; packaging</h2>
+<p>From the <em>setting-up-python-project</em> conventions, mirroring the <code>zndraw</code> hatch-vcs setup.</p>
+<pre><code class="language-toml">[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fastapi-rfc9457"
+dynamic = ["version"]
+requires-python = ">=3.11"
+dependencies = ["fastapi>=0.137.2", "pydantic>=2.13.4"]
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0-dev"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/fastapi_rfc9457/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fastapi_rfc9457"]</code></pre>
+<ul class="tight">
+<li><strong>uv</strong> for env + deps; <code>src/</code>-layout.</li>
+<li><strong>hatch-vcs</strong> git-tag versioning; <code>_version.py</code> git-ignored; runtime <code>__version__ = importlib.metadata.version("fastapi-rfc9457")</code>.</li>
+<li>Full <strong>ruff</strong> ruleset + <strong>prek</strong> pre-commit hooks (verbatim from the skill references).</li>
+<li>PyPI <strong>trusted-publishing</strong> workflow at <code>.github/workflows/publish.yaml</code>.</li>
+<li><code>CLAUDE.md</code> working agreements; <code>Python.gitignore</code> + the <code>_version.py</code> line.</li>
+<li>Dev deps: <code>pytest</code>, <code>pytest-asyncio</code>, <code>httpx</code>, <code>pyright</code>, <code>ruff</code>, <code>pre-commit</code>.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="testing">17 · Testing strategy</h2>
+<p>TDD throughout (write the failing test first). Two test tiers:</p>
+<h4>Runtime — <code>TestClient</code> / httpx</h4>
+<ul class="tight">
+<li>Each handler: status code, <code>content-type: application/problem+json</code>, body shape.</li>
+<li><strong>Validation guard:</strong> a multi-error <em>list body</em> asserting per-item <code>loc</code>/field/<code>type</code> in <code>errors[]</code> — the regression the review described must fail CI.</li>
+<li><strong>State-safety guard:</strong> raise one shared module-level frozen problem from two requests with different paths; assert each response carries its own <code>instance</code> and the source object is unchanged.</li>
+<li><code>HTTPException</code>/<code>StarletteHTTPException</code> interception; unhandled-<code>Exception</code> → 500; <code>strip_debug</code> on/off.</li>
+<li>OpenAPI: <code>components.schemas</code> contains <code>ProblemDetail</code> + typed types; route <code>responses</code> reference them under <code>problem+json</code>; <code>oneOf</code> merge at a shared status; no dangling <code>$ref</code>.</li>
+<li>Docs router pages; client round-trip (typed extras restored); <code>add_problem_details</code> idempotency warning.</li>
+</ul>
+<h4>Static — pyright suite (<code>tests/static/</code>)</h4>
+<ul class="tight">
+<li>Files that <em>must</em> type-check, and files that must produce specific errors (missing/mistyped extension member, wrong <code>status</code> type), asserted via <code>reveal_type</code> / expected-error markers — locking in the headline typing guarantee. Run under <code>uv run pyright</code> in CI.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="risks">18 · Risks &amp; open items</h2>
+<table>
+<thead><tr><th>Item</th><th>Plan</th></tr></thead>
+<tbody>
+<tr><td><strong>Zero-boilerplate subclass mechanism</strong> (metaclass vs. <code>@problem</code> decorator) while keeping full pyright field checking.</td>
+<td>First task in the plan is a spike: a <code>tests/static/</code> file proving a decorator-free subclass still type-checks. If the metaclass route is fiddly, ship a one-line <code>@problem</code> decorator as the documented form. Both are known-viable; the dataclass+Exception+frozen+ClassVar core is already verified.</td></tr>
+<tr><td>Per-type <strong>wire schema</strong> generation (type/title/status as consts + typed extras + detail/instance) for OpenAPI.</td>
+<td>Build via <code>TypeAdapter</code>/a generated <code>ProblemDetail</code> subclass per type; verified <code>TypeAdapter(...).json_schema()</code> yields the extension fields. Registered by <code>add_problem_details</code>.</td></tr>
+<tr><td>FastAPI ships its own RFC 9457 support (roadmap #10370).</td>
+<td>Ship a stable 1.0 early; the typed-extensions + client-parsing differentiators are unlikely to be matched by a minimal first-party feature.</td></tr>
+<tr><td><code>frozen</code> + mutable field defaults (e.g. <code>list</code>) aren’t hashable.</td>
+<td>Acceptable — hashing isn’t required; frozen still blocks attribute reassignment (the actual bug class).</td></tr>
+</tbody>
+</table>
+
+<hr>
+<p style="color:var(--muted);font-size:13px">Generated as part of the brainstorming → spec → plan workflow. Next step: an implementation plan (writing-plans) derived from this document.</p>
+</main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+<script>
+  Prism.plugins.autoloader.languages_path='https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+</script>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+</script>
+</body>
+</html>
