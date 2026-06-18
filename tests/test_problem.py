@@ -22,7 +22,7 @@ class OutOfCredit(Problem):
 
 
 class PostNotFound(Problem):
-    type = "/problems/post-not-found"
+    type = "/problems/tp-post-not-found"
     title = "Not Found"
     status = 404
 
@@ -71,12 +71,12 @@ def test_default_type_is_derived_kebab_id():
 
 
 def test_explicit_type_override_is_respected():
-    assert PostNotFound.type == "/problems/post-not-found"
+    assert PostNotFound.type == "/problems/tp-post-not-found"
 
 
 def test_registry_keyed_by_type_uri():
     assert _REGISTRY["out-of-credit"] is OutOfCredit
-    assert _REGISTRY["/problems/post-not-found"] is PostNotFound
+    assert _REGISTRY["/problems/tp-post-not-found"] is PostNotFound
 
 
 def test_duplicate_type_uri_is_rejected():

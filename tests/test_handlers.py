@@ -12,7 +12,7 @@ from fastapi_rfc9457.problem import Problem
 class OutOfCredit(Problem):
     """Not enough credit."""
 
-    type = "/problems/out-of-credit"
+    type = "/problems/th-out-of-credit"
     title = "Out of Credit"
     status = 403
     balance: int
@@ -65,7 +65,7 @@ def test_problem_handler_emits_typed_problem_json():
     assert r.status_code == 403
     assert r.headers["content-type"] == PROBLEM_MEDIA_TYPE
     body = r.json()
-    assert body["type"] == "/problems/out-of-credit"
+    assert body["type"] == "/problems/th-out-of-credit"
     assert body["title"] == "Out of Credit"
     assert body["balance"] == 30
     assert body["accounts"] == ["/acct/12"]
