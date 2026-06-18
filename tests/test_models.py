@@ -14,7 +14,10 @@ def test_defaults_and_required_fields():
 
 def test_exclude_none_drops_unset_standard_members():
     pd = ProblemDetail(title="Not Found", status=404)
-    assert pd.model_dump_json(exclude_none=True) == '{"type":"about:blank","title":"Not Found","status":404}'
+    assert (
+        pd.model_dump_json(exclude_none=True)
+        == '{"type":"about:blank","title":"Not Found","status":404}'
+    )
 
 
 def test_extension_members_carried_on_the_wire():
