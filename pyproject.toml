@@ -23,6 +23,7 @@ dev = [
     "pyright>=1.1.390",
     "ruff>=0.8",
     "pre-commit>=4.0",
+    "uvicorn>=0.49.0",
 ]
 
 [tool.hatch.version]
@@ -41,6 +42,7 @@ include = ["src/", "tests/", "README.md", "pyproject.toml"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["."]
 filterwarnings = [
     # Starlette's TestClient now prefers httpx2; the httpx warning is expected.
     "ignore::DeprecationWarning",
