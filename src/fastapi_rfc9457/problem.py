@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import dataclasses
 import re
+from collections.abc import Iterator
 from typing import ClassVar, dataclass_transform, get_type_hints
 
 import pydantic
 
 from .models import ProblemDetail
 
-_REGISTRY: dict[str, type[Problem]] = {}
 _STANDARD_FIELDS = frozenset({"detail", "instance"})
 
 
@@ -73,6 +73,10 @@ class _ProblemMeta(type):
     The ``@dataclass_transform`` decoration tells static checkers to treat each
     subclass as a dataclass (so field declarations become kw-only, type-checked
     constructor parameters); ``__new__`` applies the runtime transform.
+
+    The transform is configured ``extra="forbid"`` so an unknown constructor
+    keyword — a typo, or an attempt to pass a ``ClassVar`` constant such as
+    ``status=404`` — raises rather than being silently dropped.
     """
 
     def __new__(
@@ -83,7 +87,8 @@ class _ProblemMeta(type):
         **kwargs: object,
     ):
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
-        return pydantic.dataclasses.dataclass(kw_only=True, frozen=True)(cls)
+        config = pydantic.ConfigDict(extra="forbid")
+        return pydantic.dataclasses.dataclass(config=config, kw_only=True, frozen=True)(cls)
 
 
 class Problem(Exception, metaclass=_ProblemMeta):
@@ -97,6 +102,8 @@ class Problem(Exception, metaclass=_ProblemMeta):
     -----
     No decorator is needed on subclasses: the metaclass carries the dataclass
     machinery. Instances are frozen, so module-level constants are safe to reuse.
+    Unknown constructor keywords are rejected (``extra="forbid"``): passing a
+    ``ClassVar`` constant like ``status=404`` raises rather than being ignored.
     """
 
     title: ClassVar[str]
@@ -107,14 +114,31 @@ class Problem(Exception, metaclass=_ProblemMeta):
 
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
-        uri = cls.type if cls.type is not None else _derive_type(cls.__name__)
-        cls.type = uri
-        existing = _REGISTRY.get(uri)
-        if existing is not None and existing is not cls:
-            raise ValueError(
-                f"Duplicate problem type URI {uri!r}: {existing.__name__} and {cls.__name__}"
-            )
-        _REGISTRY[uri] = cls
+        cls.type = cls.type if cls.type is not None else _derive_type(cls.__name__)
+
+
+def iter_problem_types() -> Iterator[type[Problem]]:
+    """Yield every defined :class:`Problem` subclass, transitively.
+
+    Walks ``Problem.__subclasses__()`` (Python's own weakly-held subclass list),
+    so no explicit registry is kept: a type is "known" exactly while it is a live
+    class. Used to map an incoming ``type`` URI back to its authored class and to
+    validate the type set at startup.
+
+    Yields
+    ------
+    type[Problem]
+        Each distinct subclass, deduplicated.
+    """
+    seen: set[type[Problem]] = set()
+    stack: list[type[Problem]] = list(Problem.__subclasses__())
+    while stack:
+        cls = stack.pop()
+        if cls in seen:
+            continue
+        seen.add(cls)
+        yield cls
+        stack.extend(cls.__subclasses__())
 
 
 class ProblemError(Exception):

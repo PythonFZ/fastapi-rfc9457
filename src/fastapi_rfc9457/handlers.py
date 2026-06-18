@@ -82,7 +82,6 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
             loc = list(err["loc"])
             param = InvalidParam(
                 loc=loc,
-                pointer="/" + "/".join(str(p) for p in loc),
                 detail=err["msg"],
                 type=err["type"],
                 input=None if strip_debug or "input" not in err else jsonable_encoder(err["input"]),

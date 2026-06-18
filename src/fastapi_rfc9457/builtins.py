@@ -73,8 +73,11 @@ class InvalidParam(BaseModel):
     loc : list[str | int]
         Faithful FastAPI location, e.g. ``["body", 0, "task_name"]`` — the list
         index is preserved (why we use ``loc`` rather than RFC 7807's ``name``).
-    pointer : str | None
-        RFC 6901 JSON Pointer convenience, e.g. ``"/body/0/task_name"``.
+        We deliberately omit a JSON Pointer rendering: ``loc`` already carries
+        strictly more (it keeps int indices distinct from string keys and avoids
+        the ``/``-escaping ambiguity a flat pointer would introduce), and a
+        location-class-prefixed pointer like ``/query/limit`` does not point into
+        any real request document.
     detail : str
         The pydantic error message.
     type : str
@@ -84,7 +87,6 @@ class InvalidParam(BaseModel):
     """
 
     loc: list[str | int]
-    pointer: str | None = None
     detail: str
     type: str
     input: Any = None

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from fastapi_rfc9457.integration import add_problem_handlers
-from fastapi_rfc9457.models import PROBLEM_MEDIA_TYPE
+from fastapi_rfc9457.models import PROBLEM_MEDIA_TYPE, ProblemDetail
 from fastapi_rfc9457.openapi import problems
 from fastapi_rfc9457.problem import Problem
 
@@ -46,10 +46,10 @@ def test_one_call_wires_handlers_and_openapi():
 def test_state_safety_shared_frozen_problem_across_paths():
     """Each request gets its own resolved `instance`; the source object is unchanged."""
     client = TestClient(build_app())
-    a = client.get("/posts/aaa").json()
-    b = client.get("/posts/bbb").json()
-    assert a["instance"] == "/posts/aaa"
-    assert b["instance"] == "/posts/bbb"
+    a = ProblemDetail.model_validate(client.get("/posts/aaa").json())
+    b = ProblemDetail.model_validate(client.get("/posts/bbb").json())
+    assert a.instance == "/posts/aaa"
+    assert b.instance == "/posts/bbb"
     # the shared constant was never mutated:
     assert POST_NOT_FOUND.instance is None
 

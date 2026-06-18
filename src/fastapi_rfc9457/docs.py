@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import html
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.responses import Response
 
-from .problem import _REGISTRY, Problem, extension_fields
+from .builtins import InternalServerError, ValidationProblem
+from .openapi import route_problem_types
+from .problem import Problem, extension_fields
 
 _HTML = """<!doctype html><meta charset="utf-8">
 <title>{title}</title>
@@ -21,13 +24,32 @@ _HTML = """<!doctype html><meta charset="utf-8">
 </main>"""
 
 
+def _format_type(typ: Any) -> str:
+    """Render a type annotation as a short, readable name.
+
+    Plain classes use their bare ``__name__`` (``int`` rather than the repr
+    ``<class 'int'>``); parameterized generics fall back to ``str`` (``list[str]``).
+
+    Parameters
+    ----------
+    typ : Any
+        A resolved type annotation.
+
+    Returns
+    -------
+    str
+        A human-readable rendering of the annotation.
+    """
+    return typ.__name__ if isinstance(typ, type) else str(typ)
+
+
 def _payload(cls: type[Problem]) -> dict[str, Any]:
     return {
         "type": cls.type,
         "title": cls.title,
         "status": cls.status,
         "description": (cls.__doc__ or "").strip(),
-        "extensions": {name: str(typ) for name, typ in extension_fields(cls).items()},
+        "extensions": {name: _format_type(typ) for name, typ in extension_fields(cls).items()},
     }
 
 
@@ -35,13 +57,44 @@ def _slug(cls: type[Problem]) -> str:
     return (cls.type or "").rsplit("/", 1)[-1]
 
 
+def _render(cls: type[Problem], request: Request) -> Response:
+    data = _payload(cls)
+    if "text/html" in request.headers.get("accept", ""):
+        members = "".join(
+            f"<li><code>{html.escape(name)}</code>: {html.escape(typ)}</li>"
+            for name, typ in data["extensions"].items()
+        )
+        escaped = {k: html.escape(str(v)) for k, v in data.items() if k != "extensions"}
+        return HTMLResponse(_HTML.format(members=members, **escaped))
+    return JSONResponse(data)
+
+
+def _documented_types(app: Any) -> list[type[Problem]]:
+    """Types whose doc pages this app serves: those on its routes plus the two
+    builtins ``add_problem_handlers`` always emits (validation 422, unhandled 500)."""
+    seen = {cls.type: cls for cls in route_problem_types(app)}
+    for cls in (ValidationProblem, InternalServerError):
+        seen.setdefault(cls.type, cls)
+    return list(seen.values())
+
+
 def get_problem_docs_router(*types: type[Problem]) -> APIRouter:
     """Return a router serving one doc page per problem type.
+
+    Two modes:
+
+    * **Route-derived (no arguments).** Serves a page for every problem type the
+      app declares via ``responses=problems(...)`` (plus the always-on validation
+      and internal-error types), resolved from the request's app at call time.
+      Adding a new type to a route is the only change needed — nothing to restate
+      here.
+    * **Explicit.** Pass specific types to publish exactly those pages (useful for
+      a standalone docs app with no routes raising them).
 
     Parameters
     ----------
     *types : type[Problem]
-        The types to document. If empty, every registered type is served.
+        The types to document, or none to derive them from the app's routes.
 
     Returns
     -------
@@ -50,21 +103,33 @@ def get_problem_docs_router(*types: type[Problem]) -> APIRouter:
         point your ``type`` URIs at the chosen prefix.
     """
     router = APIRouter()
-    selected = list(types) if types else list(_REGISTRY.values())
 
-    for cls in selected:
+    if not types:
+
+        async def endpoint(slug: str, request: Request) -> Response:
+            available = {_slug(cls): cls for cls in _documented_types(request.app)}
+            match = available.get(slug)
+            if match is None:
+                raise HTTPException(
+                    status_code=404, detail=f"No problem type documented at {slug!r}"
+                )
+            return _render(match, request)
+
+        router.add_api_route(
+            "/{slug}",
+            endpoint,
+            methods=["GET"],
+            name="problem-doc",
+            summary="Problem type documentation",
+        )
+        return router
+
+    for cls in types:
         slug = _slug(cls)
 
         def make_endpoint(problem_cls: type[Problem]):
             async def endpoint(request: Request) -> Response:
-                data = _payload(problem_cls)
-                if "text/html" in request.headers.get("accept", ""):
-                    members = "".join(
-                        f"<li><code>{name}</code>: {typ}</li>"
-                        for name, typ in data["extensions"].items()
-                    )
-                    return HTMLResponse(_HTML.format(members=members, **data))
-                return JSONResponse(data)
+                return _render(problem_cls, request)
 
             return endpoint
 

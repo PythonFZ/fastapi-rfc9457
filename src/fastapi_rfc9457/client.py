@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
-from .problem import _REGISTRY, Problem, ProblemError, extension_fields
+from .problem import Problem, ProblemError, extension_fields, iter_problem_types
 
 
 def _coerce(source: Any) -> dict[str, Any]:
@@ -34,7 +34,7 @@ def parse_problem(source: Any) -> ProblemDetail | Problem:
         when ``type`` is known, otherwise a generic ``ProblemDetail``.
     """
     detail = ProblemDetail.model_validate(_coerce(source))
-    cls = _REGISTRY.get(detail.type)
+    cls = next((c for c in iter_problem_types() if c.type == detail.type), None)
     if cls is None:
         return detail
     extensions = {

@@ -1,14 +1,15 @@
 import dataclasses
 
+import pydantic
 import pytest
 
 from fastapi_rfc9457.models import ProblemDetail
 from fastapi_rfc9457.problem import (
-    _REGISTRY,
     Problem,
     ProblemError,
     _derive_type,
     extension_fields,
+    iter_problem_types,
 )
 
 
@@ -47,6 +48,25 @@ def test_can_be_raised_and_chained():
         assert exc.__traceback__ is not None
 
 
+def test_unknown_kwarg_is_rejected_not_swallowed():
+    # `status` (like `title`/`type`) is a ClassVar constant, not a field. A caller
+    # who writes `OutOfCredit(status=404, ...)` believes they are overriding the
+    # status; silently dropping it would ship a 403 while the author thinks it's a
+    # 404. Required fields are supplied here so the *only* fault is the stray kwarg.
+    with pytest.raises(pydantic.ValidationError) as exc_info:
+        OutOfCredit(status=404, balance=30, accounts=[])
+    assert "status" in str(exc_info.value)
+
+
+def test_misspelled_extension_field_is_rejected():
+    # All real fields are supplied, so a missing-required error cannot mask the
+    # fault: a typo'd extra member (`balnce`) must itself fail loudly rather than
+    # being silently dropped.
+    with pytest.raises(pydantic.ValidationError) as exc_info:
+        OutOfCredit(balance=30, accounts=[], balnce=99)
+    assert "balnce" in str(exc_info.value)
+
+
 def test_frozen_blocks_mutation():
     err = OutOfCredit(balance=1, accounts=[])
     with pytest.raises(dataclasses.FrozenInstanceError):
@@ -74,23 +94,26 @@ def test_explicit_type_override_is_respected():
     assert PostNotFound.type == "/problems/tp-post-not-found"
 
 
-def test_registry_keyed_by_type_uri():
-    assert _REGISTRY["out-of-credit"] is OutOfCredit
-    assert _REGISTRY["/problems/tp-post-not-found"] is PostNotFound
+def test_iter_problem_types_discovers_defined_subclasses():
+    discovered = set(iter_problem_types())
+    assert OutOfCredit in discovered
+    assert PostNotFound in discovered
 
 
-def test_duplicate_type_uri_is_rejected():
-    with pytest.raises(ValueError, match="Duplicate problem type"):
+def test_duplicate_type_uri_does_not_raise_at_definition_time():
+    # Duplicates are deferred to OpenAPI build time (see test_openapi), so merely
+    # defining two same-URI types must not raise on import.
+    class DefDupeA(Problem):
+        type = "/problems/def-dupe"
+        title = "A"
+        status = 400
 
-        class A(Problem):
-            type = "dupe"
-            title = "A"
-            status = 400
+    class DefDupeB(Problem):
+        type = "/problems/def-dupe"
+        title = "B"
+        status = 400
 
-        class B(Problem):
-            type = "dupe"
-            title = "B"
-            status = 400
+    assert DefDupeA.type == DefDupeB.type == "/problems/def-dupe"
 
 
 def test_extension_fields_excludes_standard_members():

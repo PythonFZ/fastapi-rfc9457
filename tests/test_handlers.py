@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 from fastapi_rfc9457.handlers import make_handlers
-from fastapi_rfc9457.models import PROBLEM_MEDIA_TYPE
+from fastapi_rfc9457.models import PROBLEM_MEDIA_TYPE, ProblemDetail
 from fastapi_rfc9457.problem import Problem
 
 
@@ -64,12 +64,15 @@ def test_problem_handler_emits_typed_problem_json():
     r = client.get("/charge")
     assert r.status_code == 403
     assert r.headers["content-type"] == PROBLEM_MEDIA_TYPE
-    body = r.json()
-    assert body["type"] == "/problems/th-out-of-credit"
-    assert body["title"] == "Out of Credit"
-    assert body["balance"] == 30
-    assert body["accounts"] == ["/acct/12"]
-    assert body["instance"] == "/charge"
+    # Validate the whole RFC 9457 envelope through the wire model, then assert.
+    problem = ProblemDetail.model_validate(r.json())
+    assert problem.type == "/problems/th-out-of-credit"
+    assert problem.title == "Out of Credit"
+    assert problem.status == 403
+    assert problem.instance == "/charge"
+    extras = problem.model_dump()
+    assert extras["balance"] == 30
+    assert extras["accounts"] == ["/acct/12"]
 
 
 def test_validation_handler_query_param():
@@ -77,11 +80,12 @@ def test_validation_handler_query_param():
     r = client.get("/search?limit=abc")
     assert r.status_code == 422
     assert r.headers["content-type"] == PROBLEM_MEDIA_TYPE
-    body = r.json()
-    assert body["type"] == "/problems/validation"
-    assert body["status"] == 422
-    assert body["errors"][0]["loc"] == ["query", "limit"]
-    assert body["errors"][0]["type"] == "int_parsing"
+    problem = ProblemDetail.model_validate(r.json())
+    assert problem.type == "/problems/validation"
+    assert problem.status == 422
+    errors = problem.model_dump()["errors"]
+    assert errors[0]["loc"] == ["query", "limit"]
+    assert errors[0]["type"] == "int_parsing"
 
 
 def test_validation_handler_preserves_list_index_no_flattening():
@@ -89,15 +93,17 @@ def test_validation_handler_preserves_list_index_no_flattening():
     client = TestClient(build_app())
     r = client.post("/items", json=[{}, {"task_name": "ok"}, {}])
     assert r.status_code == 422
-    body = r.json()
-    locs = sorted(e["loc"] for e in body["errors"])
+    errors = ProblemDetail.model_validate(r.json()).model_dump()["errors"]
+    locs = sorted(e["loc"] for e in errors)
     assert locs == [["body", 0, "task_name"], ["body", 2, "task_name"]]
-    for e in body["errors"]:
+    for e in errors:
         assert e["type"] == "missing"
-        assert e["pointer"] in ("/body/0/task_name", "/body/2/task_name")
+        assert "pointer" not in e
 
 
 def test_validation_input_gated_by_strip_debug():
+    # Wire-level presence of the per-error `input` key (serialization behavior),
+    # so this asserts on the raw body rather than through the model.
     client_dbg = TestClient(build_app(strip_debug=False))
     body = client_dbg.get("/search?limit=abc").json()
     assert "input" in body["errors"][0]
@@ -112,10 +118,10 @@ def test_http_handler_intercepts_http_exception():
     r = client.get("/missing")
     assert r.status_code == 404
     assert r.headers["content-type"] == PROBLEM_MEDIA_TYPE
-    body = r.json()
-    assert body["title"] == "Not Found"
-    assert body["detail"] == "nope"
-    assert body["instance"] == "/missing"
+    problem = ProblemDetail.model_validate(r.json())
+    assert problem.title == "Not Found"
+    assert problem.detail == "nope"
+    assert problem.instance == "/missing"
 
 
 def test_unhandled_handler_returns_500():
@@ -123,22 +129,23 @@ def test_unhandled_handler_returns_500():
     r = client.get("/boom")
     assert r.status_code == 500
     assert r.headers["content-type"] == PROBLEM_MEDIA_TYPE
-    body = r.json()
-    assert body["title"] == "Internal Server Error"
-    assert "RuntimeError" in body["detail"]
+    problem = ProblemDetail.model_validate(r.json())
+    assert problem.title == "Internal Server Error"
+    assert problem.detail is not None and "RuntimeError" in problem.detail
 
 
 def test_unhandled_handler_strip_debug_redacts_detail():
     client = TestClient(build_app(strip_debug=True), raise_server_exceptions=False)
-    body = client.get("/boom").json()
-    assert body["status"] == 500
-    assert body.get("detail") is None
+    problem = ProblemDetail.model_validate(client.get("/boom").json())
+    assert problem.status == 500
+    assert problem.detail is None
 
 
 def test_instance_from_request_false_omits_instance():
+    # `instance` is dropped from the wire when unset (exclude_none), which the
+    # model can't observe (absent vs. null both parse to None) — assert on the body.
     client = TestClient(build_app(instance_from_request=False))
-    body = client.get("/charge").json()
-    assert "instance" not in body
+    assert "instance" not in client.get("/charge").json()
 
 
 def test_http_handler_forwards_exception_headers():

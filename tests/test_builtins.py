@@ -43,7 +43,7 @@ def test_validation_problem_shape():
 
 def test_invalid_param_fields():
     p = InvalidParam(loc=["body", 0, "x"], detail="Field required", type="missing")
-    assert p.pointer is None
+    assert "pointer" not in InvalidParam.model_fields
     assert p.input is None
     dumped = p.model_dump(exclude_none=True)
     assert dumped == {"loc": ["body", 0, "x"], "detail": "Field required", "type": "missing"}
