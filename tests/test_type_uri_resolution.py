@@ -88,7 +88,9 @@ def test_client_matches_type_by_slug_regardless_of_prefix():
 
 def test_doc_page_reports_the_url_it_lives_at():
     client = TestClient(_app("/v1/problems"))
-    body = client.get("/v1/problems/res-out-of-credit", headers={"accept": "application/json"}).json()
+    body = client.get(
+        "/v1/problems/res-out-of-credit", headers={"accept": "application/json"}
+    ).json()
     assert body["type"] == "/v1/problems/res-out-of-credit"
 
 
