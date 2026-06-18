@@ -64,6 +64,12 @@ def register_problem_components(app: FastAPI) -> None:
     ----------
     app : FastAPI
         The application whose ``openapi`` callable is wrapped.
+
+    Notes
+    -----
+    The OpenAPI schema reflects the problem-type registry at the moment it is
+    first built (the wrap is lazy and cached). Define/import all ``Problem``
+    subclasses before the schema is first generated so every type is documented.
     """
 
     def custom_openapi() -> dict[str, Any]:
@@ -73,8 +79,15 @@ def register_problem_components(app: FastAPI) -> None:
             title=app.title,
             version=app.version,
             openapi_version=app.openapi_version,
+            summary=app.summary,
             description=app.description,
             routes=app.routes,
+            webhooks=app.webhooks.routes,
+            tags=app.openapi_tags,
+            servers=app.servers,
+            terms_of_service=app.terms_of_service,
+            contact=app.contact,
+            license_info=app.license_info,
         )
         components = schema.setdefault("components", {}).setdefault("schemas", {})
 

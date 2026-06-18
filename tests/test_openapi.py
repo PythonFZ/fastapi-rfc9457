@@ -85,3 +85,21 @@ def test_register_components_injects_schemas_and_no_dangling_refs():
 
     refs = re.findall(r'"#/components/schemas/([^"]+)"', json.dumps(doc))
     assert all(name in schemas for name in refs)
+
+
+def test_register_components_preserves_app_metadata():
+    app = FastAPI(
+        title="My API",
+        version="9.9.9",
+        servers=[{"url": "https://api.example.com"}],
+    )
+
+    @app.get("/c", responses=problems(Charged))
+    async def c() -> dict:
+        return {}
+
+    register_problem_components(app)
+    doc = TestClient(app).get("/openapi.json").json()
+    assert doc["servers"] == [{"url": "https://api.example.com"}]
+    assert doc["info"]["title"] == "My API"
+    assert doc["info"]["version"] == "9.9.9"
