@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fastapi-rfc9457"
+description = "Typed, batteries-included RFC 9457 Problem Details for FastAPI & Pydantic v2."
+readme = "README.md"
+requires-python = ">=3.11"
+dynamic = ["version"]
+license = "MIT"
+authors = [{ name = "Fabian Zills" }]
+dependencies = ["fastapi>=0.137.2", "pydantic>=2.13.4"]
+
+[project.optional-dependencies]
+client = ["httpx>=0.27"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "pyright>=1.1.390",
+    "ruff>=0.8",
+    "pre-commit>=4.0",
+]
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0-dev"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/fastapi_rfc9457/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fastapi_rfc9457"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = [
+    # Starlette's TestClient now prefers httpx2; the httpx warning is expected.
+    "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "PIE", "RUF"]
+ignore = ["B008"]  # FastAPI's Depends()/Query() defaults are a deliberate pattern
+
+[tool.ruff.lint.per-file-ignores]
+"tests/static/*" = ["F821", "F811", "B018", "E501"]  # intentional type-error fixtures
+
+[tool.pyright]
+include = ["src", "tests/static/valid_usage.py"]
+exclude = ["tests/static/expected_errors.py", "**/_version.py"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
