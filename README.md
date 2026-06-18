@@ -1,5 +1,7 @@
 # fastapi-rfc9457
 
+[![PyPI](https://img.shields.io/pypi/v/fastapi-rfc9457)](https://pypi.org/project/fastapi-rfc9457/)
+
 Typed, batteries-included [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html)
 "Problem Details for HTTP APIs" for FastAPI & Pydantic.
 
@@ -43,14 +45,16 @@ One route can declare several failure modes. Distinct statuses get their own
 response; same-status problems become a `oneOf` union you flip through in
 Swagger's **Examples** dropdown — all under `application/problem+json`.
 
-![Swagger error responses with a problem+json examples dropdown](docs/img/swagger-errors.png)
+![Swagger error responses with a problem+json examples dropdown](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/swagger-errors.png)
+
+
 
 ## Dereferenceable `type` URIs
 
 Mount the docs router and every problem `type` resolves to a live page listing
 its typed extension members.
 
-![Problem type documentation page](docs/img/doc-page.png)
+![Problem type documentation page](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/doc-page.png)
 
 ## Features
 
@@ -78,4 +82,3 @@ that raises those problems back as typed exceptions on the consumer side.
 ## Notes
 
 - Replaces FastAPI's default 422 body with `application/problem+json`.
-

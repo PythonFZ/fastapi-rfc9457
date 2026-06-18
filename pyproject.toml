@@ -12,6 +12,10 @@ license = "MIT"
 authors = [{ name = "Fabian Zills" }]
 dependencies = ["fastapi>=0.137.2", "pydantic>=2.13.4"]
 
+[project.urls]
+Repository = "https://github.com/PythonFZ/fastapi-rfc9457"
+Releases = "https://github.com/PythonFZ/fastapi-rfc9457/releases"
+
 [project.optional-dependencies]
 client = ["httpx>=0.27"]
 
@@ -37,7 +41,7 @@ version-file = "src/fastapi_rfc9457/_version.py"
 packages = ["src/fastapi_rfc9457"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/", "tests/", "README.md", "pyproject.toml"]
+include = ["src/", "tests/", "README.md", "pyproject.toml", "LICENSE"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
