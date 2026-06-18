@@ -50,6 +50,12 @@ def build_app(*, strip_debug=False, instance_from_request=True) -> FastAPI:
     async def boom() -> dict:
         raise RuntimeError("kaboom")
 
+    @app.get("/needs-auth")
+    async def needs_auth() -> dict:
+        raise HTTPException(
+            status_code=401, detail="auth required", headers={"WWW-Authenticate": "Bearer"}
+        )
+
     return app
 
 
@@ -133,3 +139,11 @@ def test_instance_from_request_false_omits_instance():
     client = TestClient(build_app(instance_from_request=False))
     body = client.get("/charge").json()
     assert "instance" not in body
+
+
+def test_http_handler_forwards_exception_headers():
+    client = TestClient(build_app())
+    r = client.get("/needs-auth")
+    assert r.status_code == 401
+    assert r.headers["content-type"] == PROBLEM_MEDIA_TYPE
+    assert r.headers["WWW-Authenticate"] == "Bearer"
