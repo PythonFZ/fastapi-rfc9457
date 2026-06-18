@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from .handlers import make_handlers
 from .openapi import register_problem_components
+from .problem import _REGISTRY
 
 _INSTALLED_FLAG = "_fastapi_rfc9457_installed"
 
@@ -46,3 +49,28 @@ def add_problem_handlers(
 
     register_problem_components(app)
     setattr(app.state, _INSTALLED_FLAG, True)
+
+
+@asynccontextmanager
+async def problem_details_lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Composable lifespan: validate the problem-type registry on startup.
+
+    Nest this inside your own lifespan (user lifespan outer, ours inner). It
+    fails fast if any registered problem type is missing ``title`` or ``status``;
+    duplicate type URIs are already rejected at class-definition time.
+
+    Parameters
+    ----------
+    app : FastAPI
+        The application (unused today; reserved for app-metadata binding).
+
+    Yields
+    ------
+    None
+    """
+    for uri, cls in _REGISTRY.items():
+        if not getattr(cls, "title", None):
+            raise RuntimeError(f"Problem type {cls.__name__} ({uri!r}) is missing a title")
+        if not getattr(cls, "status", None):
+            raise RuntimeError(f"Problem type {cls.__name__} ({uri!r}) is missing a status")
+    yield
