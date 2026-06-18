@@ -29,6 +29,11 @@ def _derive_type(name: str) -> str:
     -------
     str
         The derived relative type-URI reference (RFC 9457 §3.1.1 permits these).
+
+    Notes
+    -----
+    Derivation is lossy for acronym-heavy names (``HTTPError`` -> ``"http"``);
+    set an explicit ``type`` ClassVar when the derived id would be ambiguous.
     """
     base = re.sub(r"(Problem|Error)$", "", name) or name
     step = re.sub(r"(.)([A-Z][a-z]+)", r"\1-\2", base)

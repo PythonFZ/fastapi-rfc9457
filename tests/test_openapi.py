@@ -1,3 +1,4 @@
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -103,3 +104,42 @@ def test_register_components_preserves_app_metadata():
     assert doc["servers"] == [{"url": "https://api.example.com"}]
     assert doc["info"]["title"] == "My API"
     assert doc["info"]["version"] == "9.9.9"
+
+
+def test_register_components_raises_on_component_name_collision():
+    from fastapi_rfc9457.problem import _REGISTRY
+
+    class Collide(Problem):
+        """First collider."""
+
+        type = "/problems/collide-a"
+        title = "A"
+        status = 400
+        alpha: int
+
+    def _make_other() -> type[Problem]:
+        class Collide(Problem):  # same __name__, different URI + fields
+            """Second collider."""
+
+            type = "/problems/collide-b"
+            title = "B"
+            status = 400
+            beta: str
+
+        return Collide
+
+    other = _make_other()
+
+    app = FastAPI()
+
+    @app.get("/x", responses=problems(other))
+    async def x() -> dict:
+        return {}
+
+    register_problem_components(app)
+    try:
+        with pytest.raises(ValueError, match="component name"):
+            app.openapi()
+    finally:
+        _REGISTRY.pop("/problems/collide-a", None)
+        _REGISTRY.pop("/problems/collide-b", None)

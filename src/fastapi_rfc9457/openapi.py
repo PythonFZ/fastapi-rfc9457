@@ -93,8 +93,21 @@ def register_problem_components(app: FastAPI) -> None:
 
         def _add(name: str, model_schema: dict[str, Any]) -> None:
             defs = model_schema.pop("$defs", {})
+            existing = components.get(name)
+            if existing is not None and existing != model_schema:
+                raise ValueError(
+                    f"Two problem types map to the OpenAPI component name {name!r} "
+                    f"with different schemas. Rename one of the classes so component "
+                    f"names are unique."
+                )
             components.setdefault(name, model_schema)
             for def_name, def_schema in defs.items():
+                existing_def = components.get(def_name)
+                if existing_def is not None and existing_def != def_schema:
+                    raise ValueError(
+                        f"Two nested models map to the OpenAPI component name "
+                        f"{def_name!r} with different schemas. Rename one."
+                    )
                 components.setdefault(def_name, def_schema)
 
         _add("ProblemDetail", ProblemDetail.model_json_schema(ref_template=_REF_TEMPLATE))
