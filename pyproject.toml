@@ -35,6 +35,9 @@ version-file = "src/fastapi_rfc9457/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/fastapi_rfc9457"]
 
+[tool.hatch.build.targets.sdist]
+include = ["src/", "tests/", "README.md", "pyproject.toml"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
