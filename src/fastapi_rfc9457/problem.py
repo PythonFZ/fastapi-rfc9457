@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
-from typing import ClassVar, cast, dataclass_transform
+from typing import ClassVar, dataclass_transform, get_type_hints
 
 import pydantic
 
@@ -38,6 +38,10 @@ def _derive_type(name: str) -> str:
 def extension_fields(cls: type) -> dict[str, type]:
     """Return the typed extension members of a problem class.
 
+    Annotations are resolved with :func:`typing.get_type_hints` so that string
+    annotations (PEP 563 / ``from __future__ import annotations``) come back as
+    real types rather than strings.
+
     Parameters
     ----------
     cls : type
@@ -46,16 +50,15 @@ def extension_fields(cls: type) -> dict[str, type]:
     Returns
     -------
     dict[str, type]
-        Field name -> annotation, excluding the standard ``detail``/``instance``.
+        Field name -> resolved annotation, excluding the standard
+        ``detail``/``instance`` members.
     """
-    return cast(
-        dict[str, type],
-        {
-            field.name: field.type
-            for field in dataclasses.fields(cls)
-            if field.name not in _STANDARD_FIELDS
-        },
-    )
+    hints = get_type_hints(cls)
+    return {
+        field.name: hints[field.name]
+        for field in dataclasses.fields(cls)
+        if field.name not in _STANDARD_FIELDS
+    }
 
 
 @dataclass_transform(kw_only_default=True, frozen_default=True)
@@ -67,7 +70,13 @@ class _ProblemMeta(type):
     constructor parameters); ``__new__`` applies the runtime transform.
     """
 
-    def __new__(mcs, name, bases, namespace, **kwargs):
+    def __new__(
+        mcs,
+        name: str,
+        bases: tuple[type, ...],
+        namespace: dict[str, object],
+        **kwargs: object,
+    ):
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
         return pydantic.dataclasses.dataclass(kw_only=True, frozen=True)(cls)
 
