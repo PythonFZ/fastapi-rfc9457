@@ -47,6 +47,8 @@ Swagger's **Examples** dropdown — all under `application/problem+json`.
 
 ![Swagger error responses with a problem+json examples dropdown](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/swagger-errors.png)
 
+
+
 ## Dereferenceable `type` URIs
 
 Mount the docs router and every problem `type` resolves to a live page listing
