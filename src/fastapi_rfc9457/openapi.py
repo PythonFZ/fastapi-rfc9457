@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, create_model
 from .builtins import ValidationProblem
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
 from .problem import Problem, extension_fields
+from .uris import resolve_type_uri
 
 _REF_TEMPLATE = "#/components/schemas/{model}"
 _HTTP_VALIDATION_ERROR = _REF_TEMPLATE.format(model="HTTPValidationError")
@@ -164,13 +165,13 @@ def route_problem_types(app: FastAPI) -> list[type[Problem]]:
 
 
 def _ref_schema(
-    members: list[type[BaseModel]], seen_uris: dict[str, type[Problem]]
+    members: list[type[BaseModel]], seen_uris: dict[str, type[Problem]], app: FastAPI
 ) -> dict[str, Any]:
     """Build the ``$ref``/``oneOf`` schema for a response, checking URI uniqueness."""
     refs: list[dict[str, Any]] = []
     for member in members:
         source: type[Problem] = member.__problem_source__  # type: ignore[attr-defined]
-        uri = source.type or "about:blank"
+        uri = resolve_type_uri(app, source)
         existing = seen_uris.get(uri)
         if existing is not None and existing is not source:
             raise ValueError(
@@ -322,6 +323,42 @@ def _rewrite_validation_responses(paths: dict[str, Any], components: dict[str, A
         _ensure_component(components, _wire_model(ValidationProblem))
 
 
+def _retarget_type_uris(schema: dict[str, Any], app: FastAPI) -> None:
+    """Point each problem ``type`` const at its live doc-page URL.
+
+    FastAPI bakes ``type`` into every problem component as a ``const`` taken from
+    the class's declared id. This rewrites those consts (and any inline ``oneOf``
+    example values) to the URI resolved against the mounted docs route, so the
+    documented ``type`` matches what the runtime handlers emit (issue #6).
+    """
+    components: dict[str, Any] = schema.get("components", {}).get("schemas", {})
+    sources = list(route_problem_types(app))
+    if "ValidationProblem" in components:
+        sources.append(ValidationProblem)
+    uri_by_name = {cls.__name__: resolve_type_uri(app, cls) for cls in sources}
+
+    for name, uri in uri_by_name.items():
+        type_schema = components.get(name, {}).get("properties", {}).get("type")
+        if isinstance(type_schema, dict):
+            type_schema["const"] = uri
+            type_schema["default"] = uri
+
+    for path_item in schema.get("paths", {}).values():
+        if not isinstance(path_item, dict):
+            continue
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            for response in operation.get("responses", {}).values():
+                if not isinstance(response, dict):
+                    continue
+                for media in response.get("content", {}).values():
+                    for ex_name, example in media.get("examples", {}).items():
+                        value = example.get("value")
+                        if ex_name in uri_by_name and isinstance(value, dict):
+                            value["type"] = uri_by_name[ex_name]
+
+
 def _prune_unreferenced(schema: dict[str, Any], names: tuple[str, ...]) -> None:
     """Drop named components no longer pointed at by any ``$ref`` (cleanup pass)."""
     schemas = schema.get("components", {}).get("schemas", {})
@@ -377,7 +414,7 @@ def register_problem_components(app: FastAPI) -> None:
                 members = _problem_wire_members(entry.get("model"))
                 if members is None:
                     continue
-                content_schema = _ref_schema(members, seen_uris)
+                content_schema = _ref_schema(members, seen_uris, app)
                 media: dict[str, Any] = {"schema": content_schema}
                 if len(members) > 1:
                     # Swagger UI samples only the first oneOf branch; name an
@@ -393,6 +430,7 @@ def register_problem_components(app: FastAPI) -> None:
 
         _rewrite_validation_responses(paths, components)
         _ensure_component(components, ProblemDetail)  # canonical open base shape
+        _retarget_type_uris(schema, app)  # consts track the mounted docs prefix
         _prune_unreferenced(schema, ("HTTPValidationError", "ValidationError"))
 
         app.openapi_schema = schema

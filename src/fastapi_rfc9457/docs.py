@@ -12,6 +12,7 @@ from starlette.responses import Response
 from .builtins import InternalServerError, ValidationProblem
 from .openapi import route_problem_types
 from .problem import Problem, extension_fields
+from .uris import DOC_ROUTE, doc_route_name, resolve_type_uri, slug_of
 
 _HTML = """<!doctype html><meta charset="utf-8">
 <title>{title}</title>
@@ -43,9 +44,9 @@ def _format_type(typ: Any) -> str:
     return typ.__name__ if isinstance(typ, type) else str(typ)
 
 
-def _payload(cls: type[Problem]) -> dict[str, Any]:
+def _payload(cls: type[Problem], type_uri: str) -> dict[str, Any]:
     return {
-        "type": cls.type,
+        "type": type_uri,
         "title": cls.title,
         "status": cls.status,
         "description": (cls.__doc__ or "").strip(),
@@ -53,12 +54,8 @@ def _payload(cls: type[Problem]) -> dict[str, Any]:
     }
 
 
-def _slug(cls: type[Problem]) -> str:
-    return (cls.type or "").rsplit("/", 1)[-1]
-
-
 def _render(cls: type[Problem], request: Request) -> Response:
-    data = _payload(cls)
+    data = _payload(cls, resolve_type_uri(request.app, cls))
     if "text/html" in request.headers.get("accept", ""):
         members = "".join(
             f"<li><code>{html.escape(name)}</code>: {html.escape(typ)}</li>"
@@ -107,7 +104,7 @@ def get_problem_docs_router(*types: type[Problem]) -> APIRouter:
     if not types:
 
         async def endpoint(slug: str, request: Request) -> Response:
-            available = {_slug(cls): cls for cls in _documented_types(request.app)}
+            available = {slug_of(cls): cls for cls in _documented_types(request.app)}
             match = available.get(slug)
             if match is None:
                 raise HTTPException(
@@ -119,13 +116,13 @@ def get_problem_docs_router(*types: type[Problem]) -> APIRouter:
             "/{slug}",
             endpoint,
             methods=["GET"],
-            name="problem-doc",
+            name=DOC_ROUTE,
             summary="Problem type documentation",
         )
         return router
 
     for cls in types:
-        slug = _slug(cls)
+        slug = slug_of(cls)
 
         def make_endpoint(problem_cls: type[Problem]):
             async def endpoint(request: Request) -> Response:
@@ -137,7 +134,7 @@ def get_problem_docs_router(*types: type[Problem]) -> APIRouter:
             f"/{slug}",
             make_endpoint(cls),
             methods=["GET"],
-            name=f"problem-doc-{slug}",
+            name=doc_route_name(slug),
             summary=f"{cls.title} ({cls.status})",
         )
 

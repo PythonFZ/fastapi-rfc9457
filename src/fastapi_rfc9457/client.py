@@ -7,6 +7,7 @@ from typing import Any
 
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
 from .problem import Problem, ProblemError, extension_fields, iter_problem_types
+from .uris import slug_from_uri, slug_of
 
 
 def _coerce(source: Any) -> dict[str, Any]:
@@ -34,7 +35,11 @@ def parse_problem(source: Any) -> ProblemDetail | Problem:
         when ``type`` is known, otherwise a generic ``ProblemDetail``.
     """
     detail = ProblemDetail.model_validate(_coerce(source))
-    cls = next((c for c in iter_problem_types() if c.type == detail.type), None)
+    # Match on the slug (the type's stable identity), not the full URI: the server
+    # emits the URI resolved against its docs-mount prefix, which is deployment
+    # configuration the client need not know (see uris.py).
+    incoming = slug_from_uri(detail.type or "")
+    cls = next((c for c in iter_problem_types() if slug_of(c) == incoming), None)
     if cls is None:
         return detail
     extensions = {

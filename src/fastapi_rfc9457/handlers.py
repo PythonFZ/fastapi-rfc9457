@@ -15,11 +15,12 @@ from starlette.responses import Response
 from .builtins import InternalServerError, InvalidParam, ValidationProblem
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
 from .problem import Problem, extension_fields
+from .uris import resolve_type_uri
 
 Handler = Callable[[Request, Exception], Awaitable[Response]]
 
 
-def build_wire(problem: Problem, *, instance: str | None) -> ProblemDetail:
+def build_wire(problem: Problem, *, instance: str | None, type_uri: str) -> ProblemDetail:
     """Materialize a fresh wire model from a carried problem (never mutates it).
 
     Parameters
@@ -28,6 +29,8 @@ def build_wire(problem: Problem, *, instance: str | None) -> ProblemDetail:
         The raised problem instance (read-only input).
     instance : str | None
         Resolved ``instance`` to use when the problem didn't set one.
+    type_uri : str
+        The dereferenceable ``type`` URI, resolved from the mounted docs route.
 
     Returns
     -------
@@ -37,7 +40,7 @@ def build_wire(problem: Problem, *, instance: str | None) -> ProblemDetail:
     cls = type(problem)
     extensions = {name: getattr(problem, name) for name in extension_fields(cls)}
     return ProblemDetail(
-        type=cls.type or "about:blank",
+        type=type_uri,
         title=cls.title,
         status=cls.status,
         detail=problem.detail,
@@ -74,7 +77,8 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
         return request.url.path if instance_from_request else None
 
     async def problem_handler(request: Request, exc: Problem) -> Response:
-        return _respond(build_wire(exc, instance=_instance(request)))
+        type_uri = resolve_type_uri(request.app, type(exc))
+        return _respond(build_wire(exc, instance=_instance(request), type_uri=type_uri))
 
     async def validation_handler(request: Request, exc: RequestValidationError) -> Response:
         params: list[InvalidParam] = []
@@ -90,7 +94,7 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
         n = len(params)
         wire = ProblemDetail.model_validate(
             {
-                "type": ValidationProblem.type or "about:blank",
+                "type": resolve_type_uri(request.app, ValidationProblem),
                 "title": ValidationProblem.title,
                 "status": ValidationProblem.status,
                 "detail": f"Request validation failed ({n} error{'' if n == 1 else 's'}).",
@@ -119,7 +123,7 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
 
     async def unhandled_handler(request: Request, exc: Exception) -> Response:
         wire = ProblemDetail(
-            type=InternalServerError.type or "about:blank",
+            type=resolve_type_uri(request.app, InternalServerError),
             title=InternalServerError.title,
             status=InternalServerError.status,
             detail=None if strip_debug else f"{type(exc).__name__}: {exc}",

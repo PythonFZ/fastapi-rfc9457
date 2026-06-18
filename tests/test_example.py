@@ -25,7 +25,8 @@ def test_search_invalid_query_is_422_with_errors():
 def test_charge_requires_auth_then_is_403_with_typed_extras():
     unauth = client.get("/charge")  # no token -> NotAuthenticated
     assert unauth.status_code == 401
-    assert ProblemDetail.model_validate(unauth.json()).type == "not-authenticated"
+    # Resolved against the docs router mounted at /problems, so it dereferences.
+    assert ProblemDetail.model_validate(unauth.json()).type == "/problems/not-authenticated"
 
     r = client.get("/charge?token=abc")
     assert r.status_code == 403

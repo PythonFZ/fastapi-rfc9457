@@ -18,7 +18,6 @@ from fastapi_rfc9457 import (
 class PostNotFound(Problem):
     """The requested post does not exist."""
 
-    type = "/problems/post-not-found"
     title = "Post Not Found"
     status = 404
 
@@ -26,7 +25,6 @@ class PostNotFound(Problem):
 class OutOfCredit(Problem):
     """The account does not have enough credit to be charged."""
 
-    type = "/problems/out-of-credit"
     title = "Out of Credit"
     status = 403
     balance: int  # typed extension members, checked at the raise site
@@ -36,7 +34,6 @@ class OutOfCredit(Problem):
 class AccountSuspended(Problem):
     """The account is suspended and cannot be charged."""
 
-    type = "/problems/account-suspended"
     title = "Account Suspended"
     status = 403
 

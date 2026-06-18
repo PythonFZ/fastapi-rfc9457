@@ -81,7 +81,8 @@ def test_validation_handler_query_param():
     assert r.status_code == 422
     assert r.headers["content-type"] == PROBLEM_MEDIA_TYPE
     problem = ProblemDetail.model_validate(r.json())
-    assert problem.type == "/problems/validation"
+    # build_app() mounts no docs router, so the type falls back to the bare slug.
+    assert problem.type == "validation"
     assert problem.status == 422
     errors = problem.model_dump()["errors"]
     assert errors[0]["loc"] == ["query", "limit"]
