@@ -37,7 +37,9 @@ def test_builtins_are_raisable():
 
 def test_validation_problem_shape():
     assert ValidationProblem.status == 422
-    assert ValidationProblem.type == "/problems/validation"
+    # `type` derives to the bare slug; its dereferenceable URI is resolved from
+    # the mounted docs route at emit time, not pinned on the class.
+    assert ValidationProblem.type == "validation"
     assert extension_fields(ValidationProblem) == {"errors": list[InvalidParam]}
 
 

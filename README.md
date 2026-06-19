@@ -15,7 +15,6 @@ from fastapi_rfc9457 import Problem, add_problem_handlers, get_problem_docs_rout
 
 class OutOfCredit(Problem):
     """The account does not have enough credit."""
-    type = "/problems/out-of-credit"
     title = "Out of Credit"
     status = 403
     balance: int            # typed extension members, checked at the raise site
@@ -24,7 +23,6 @@ class OutOfCredit(Problem):
 
 class AccountSuspended(Problem):
     """The account is suspended and cannot be charged."""
-    type = "/problems/account-suspended"
     title = "Account Suspended"
     status = 403
 
@@ -53,6 +51,11 @@ Swagger's **Examples** dropdown — all under `application/problem+json`.
 
 Mount the docs router and every problem `type` resolves to a live page listing
 its typed extension members.
+
+The `type` is derived from the docs-router mount, not hard-coded: mount at
+`prefix="/problems"` and `OutOfCredit` emits and serves `/problems/out-of-credit`.
+Change the prefix and bodies, OpenAPI, and doc pages move together. Set `type`
+explicitly to emit a literal URI instead.
 
 ![Problem type documentation page](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/doc-page.png)
 

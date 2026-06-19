@@ -95,7 +95,8 @@ class InvalidParam(BaseModel):
 class ValidationProblem(Problem):
     """The request failed validation."""
 
-    type = "/problems/validation"
+    # `type` is intentionally not pinned: it derives to the "validation" slug and
+    # is resolved against the mounted docs route at emit time (see uris.py).
     title = "Unprocessable Content"
     status = 422
     errors: list[InvalidParam]
