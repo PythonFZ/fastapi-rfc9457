@@ -152,8 +152,7 @@ def route_problem_types(app: FastAPI) -> list[type[Problem]]:
         Every problem type referenced by the app's route responses.
     """
     seen: dict[type[Problem], None] = {}
-    # iter_route_contexts descends into include_router's _IncludedRouter wrapper
-    # (FastAPI >=0.137 no longer flattens those onto app.routes); see issue #10.
+
     for ctx in iter_route_contexts(app.routes):
         route = ctx.original_route
         if not isinstance(route, APIRoute):
@@ -407,10 +406,7 @@ def register_problem_components(app: FastAPI) -> None:
         components: dict[str, Any] = schema.setdefault("components", {}).setdefault("schemas", {})
 
         seen_uris: dict[str, type[Problem]] = {}
-        # Walk via iter_route_contexts (FastAPI's own OpenAPI traversal) rather
-        # than app.routes directly: FastAPI >=0.137 nests include_router routes
-        # under an _IncludedRouter wrapper, and the context yields the effective,
-        # prefix-applied path_format/methods that match the paths we just built.
+
         for ctx in iter_route_contexts(app.routes):
             route = ctx.original_route
             methods = ctx.methods
