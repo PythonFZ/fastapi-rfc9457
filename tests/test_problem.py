@@ -1,5 +1,3 @@
-import dataclasses
-
 import pydantic
 import pytest
 
@@ -67,10 +65,35 @@ def test_misspelled_extension_field_is_rejected():
     assert "balnce" in str(exc_info.value)
 
 
-def test_frozen_blocks_mutation():
+def test_fields_are_mutable_problem_is_not_frozen():
+    # A Problem IS an Exception, so CPython must be able to write to it (e.g.
+    # __traceback__ while unwinding). It is therefore not frozen at runtime;
+    # assigning a field simply works (issue #9).
     err = OutOfCredit(balance=1, accounts=[])
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        err.balance = 999
+    err.balance = 999
+    assert err.balance == 999
+
+
+def test_exception_dunders_reassignable_with_no_info_lost():
+    # contextlib reassigns __traceback__ while unwinding a `yield` dependency, and
+    # chaining / add_note touch __cause__ / __context__ / __notes__. A frozen
+    # dataclass turned the first such assignment into a FrozenInstanceError; now
+    # none of them may raise, and every value must survive intact (issue #9).
+    err = OutOfCredit(balance=1, accounts=[])
+    try:
+        raise ValueError("root")
+    except ValueError as root:
+        cause, tb = root, root.__traceback__
+    err.__traceback__ = tb
+    err.__cause__ = cause
+    err.__context__ = cause
+    err.__suppress_context__ = True
+    err.add_note("note-1")
+    assert err.__traceback__ is tb
+    assert err.__cause__ is cause
+    assert err.__context__ is cause
+    assert err.__suppress_context__ is True
+    assert err.__notes__ == ["note-1"]
 
 
 @pytest.mark.parametrize(
