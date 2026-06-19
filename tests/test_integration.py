@@ -17,7 +17,7 @@ class PostNotFound(Problem):
     status = 404
 
 
-# A single shared, frozen, module-level constant reused across requests.
+# A single shared, module-level constant reused across requests.
 POST_NOT_FOUND = PostNotFound()
 
 
@@ -43,8 +43,12 @@ def test_one_call_wires_handlers_and_openapi():
     assert "ProblemDetail" in doc["components"]["schemas"]
 
 
-def test_state_safety_shared_frozen_problem_across_paths():
-    """Each request gets its own resolved `instance`; the source object is unchanged."""
+def test_state_safety_shared_problem_across_paths():
+    """Each request gets its own resolved `instance`; the source object is unchanged.
+
+    Problems are no longer frozen (issue #9), so this safety comes from the handler
+    treating the raised problem as read-only rather than from immutability.
+    """
     client = TestClient(build_app())
     a = ProblemDetail.model_validate(client.get("/posts/aaa").json())
     b = ProblemDetail.model_validate(client.get("/posts/bbb").json())

@@ -1,4 +1,4 @@
-"""The ``Problem`` authoring surface: a frozen Pydantic dataclass + ``Exception``."""
+"""The ``Problem`` authoring surface: a Pydantic dataclass + ``Exception``."""
 
 from __future__ import annotations
 
@@ -66,9 +66,9 @@ def extension_fields(cls: type) -> dict[str, type]:
     }
 
 
-@dataclass_transform(kw_only_default=True, frozen_default=True)
+@dataclass_transform(kw_only_default=True)
 class _ProblemMeta(type):
-    """Metaclass that makes ``Problem`` and every subclass a frozen kw-only dataclass.
+    """Metaclass that makes ``Problem`` and every subclass a kw-only dataclass.
 
     The ``@dataclass_transform`` decoration tells static checkers to treat each
     subclass as a dataclass (so field declarations become kw-only, type-checked
@@ -77,6 +77,15 @@ class _ProblemMeta(type):
     The transform is configured ``extra="forbid"`` so an unknown constructor
     keyword — a typo, or an attempt to pass a ``ClassVar`` constant such as
     ``status=404`` — raises rather than being silently dropped.
+
+    The dataclass is **not** frozen: a ``Problem`` is also an ``Exception``, and
+    CPython reassigns ``__traceback__`` / ``__cause__`` / ``__context__`` on it at
+    the Python level while an exception unwinds (e.g. through the ``AsyncExitStack``
+    that backs a FastAPI ``yield`` dependency). A frozen ``__setattr__`` turns that
+    bookkeeping into a ``FrozenInstanceError``, masking the problem as a 500
+    (issue #9). ``eq=False`` keeps the usual identity-based equality and hashing of
+    an exception rather than the value-based, unhashable behavior a non-frozen
+    dataclass would otherwise synthesize.
     """
 
     def __new__(
@@ -88,7 +97,9 @@ class _ProblemMeta(type):
     ):
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
         config = pydantic.ConfigDict(extra="forbid")
-        return pydantic.dataclasses.dataclass(config=config, kw_only=True, frozen=True)(cls)
+        return pydantic.dataclasses.dataclass(config=config, kw_only=True, frozen=False, eq=False)(
+            cls
+        )
 
 
 class Problem(Exception, metaclass=_ProblemMeta):
@@ -101,9 +112,12 @@ class Problem(Exception, metaclass=_ProblemMeta):
     Notes
     -----
     No decorator is needed on subclasses: the metaclass carries the dataclass
-    machinery. Instances are frozen, so module-level constants are safe to reuse.
-    Unknown constructor keywords are rejected (``extra="forbid"``): passing a
-    ``ClassVar`` constant like ``status=404`` raises rather than being ignored.
+    machinery. Instances are not frozen (a ``Problem`` is an ``Exception``, which
+    CPython must be able to write ``__traceback__`` to as it unwinds); the
+    handlers never mutate a raised problem, so reusing a module-level constant
+    stays safe. Unknown constructor keywords are rejected (``extra="forbid"``):
+    passing a ``ClassVar`` constant like ``status=404`` raises rather than being
+    ignored.
     """
 
     title: ClassVar[str]
