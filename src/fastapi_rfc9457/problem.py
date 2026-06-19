@@ -77,15 +77,6 @@ class _ProblemMeta(type):
     The transform is configured ``extra="forbid"`` so an unknown constructor
     keyword — a typo, or an attempt to pass a ``ClassVar`` constant such as
     ``status=404`` — raises rather than being silently dropped.
-
-    The dataclass is **not** frozen: a ``Problem`` is also an ``Exception``, and
-    CPython reassigns ``__traceback__`` / ``__cause__`` / ``__context__`` on it at
-    the Python level while an exception unwinds (e.g. through the ``AsyncExitStack``
-    that backs a FastAPI ``yield`` dependency). A frozen ``__setattr__`` turns that
-    bookkeeping into a ``FrozenInstanceError``, masking the problem as a 500
-    (issue #9). ``eq=False`` keeps the usual identity-based equality and hashing of
-    an exception rather than the value-based, unhashable behavior a non-frozen
-    dataclass would otherwise synthesize.
     """
 
     def __new__(
