@@ -89,10 +89,13 @@ def resolve_type_uri(app: FastAPI, cls: type[Problem]) -> str:
     Returns
     -------
     str
-        The doc-page path (e.g. ``"/v1/problems/out-of-credit"``) when the docs
-        router is mounted; otherwise the class's declared ``type`` verbatim — a
-        valid RFC 9457 relative reference that simply isn't dereferenceable.
+        An author-written ``type`` verbatim. Otherwise the derived doc-page path
+        (e.g. ``"/v1/problems/out-of-credit"``) when the docs router is mounted,
+        or the bare derived slug when it isn't — a valid RFC 9457 relative
+        reference that simply isn't dereferenceable.
     """
+    if cls._type_is_explicit:
+        return cls.type or "about:blank"
     slug = slug_of(cls)
     try:
         return str(app.url_path_for(DOC_ROUTE, slug=slug))

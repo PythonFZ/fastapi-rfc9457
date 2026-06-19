@@ -52,12 +52,10 @@ Swagger's **Examples** dropdown — all under `application/problem+json`.
 Mount the docs router and every problem `type` resolves to a live page listing
 its typed extension members.
 
-A type's URI is **derived from where you mount the docs router**, not hard-coded
-on the class. `OutOfCredit` becomes the slug `out-of-credit`; mounting at
-`prefix="/problems"` makes it emit (and serve) `/problems/out-of-credit`. Change
-the prefix to `/v1/problems` and the response bodies, OpenAPI consts, and doc
-pages all move together — one source of truth, nothing to keep in sync. Override
-the slug with an explicit `type = "..."` only when the class name doesn't suit.
+The `type` is derived from the docs-router mount, not hard-coded: mount at
+`prefix="/problems"` and `OutOfCredit` emits and serves `/problems/out-of-credit`.
+Change the prefix and bodies, OpenAPI, and doc pages move together. Set `type`
+explicitly to emit a literal URI instead.
 
 ![Problem type documentation page](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/doc-page.png)
 

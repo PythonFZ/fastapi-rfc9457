@@ -109,11 +109,16 @@ class Problem(Exception, metaclass=_ProblemMeta):
     title: ClassVar[str]
     status: ClassVar[int]
     type: ClassVar[str | None] = None
+    #: Whether ``type`` was set on the class (vs. derived). An author-written
+    #: ``type`` is emitted verbatim; a derived one is resolved against the docs
+    #: mount at serialize time (see uris.resolve_type_uri).
+    _type_is_explicit: ClassVar[bool] = False
     detail: str | None = None
     instance: str | None = None
 
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
+        cls._type_is_explicit = cls.__dict__.get("type") is not None
         cls.type = cls.type if cls.type is not None else _derive_type(cls.__name__)
 
 

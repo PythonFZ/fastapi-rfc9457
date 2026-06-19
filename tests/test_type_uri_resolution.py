@@ -27,6 +27,22 @@ class ResOutOfCredit(Problem):
     balance: int
 
 
+class VerbatimAbsolute(Problem):
+    """An explicit absolute `type` is emitted exactly as written."""
+
+    type = "/static/errors/teapot"
+    title = "Teapot"
+    status = 418
+
+
+class VerbatimBare(Problem):
+    """An explicit bare `type` is emitted exactly as written — no prefixing."""
+
+    type = "just-this"
+    title = "Bare"
+    status = 400
+
+
 def _app(prefix: str) -> FastAPI:
     """An app whose docs router is mounted at ``prefix`` (route-derived mode)."""
     app = FastAPI()
@@ -58,6 +74,39 @@ def test_openapi_const_and_example_track_custom_docs_prefix():
     doc = TestClient(_app("/v1/problems")).get("/openapi.json").json()
     props = doc["components"]["schemas"]["ResOutOfCredit"]["properties"]
     assert props["type"]["const"] == "/v1/problems/res-out-of-credit"
+
+
+def test_explicit_type_emitted_verbatim_ignoring_mount():
+    # Written type is THE type URI: emitted exactly, never reprefixed by the mount.
+    app = FastAPI()
+    add_problem_handlers(app)
+    app.include_router(get_problem_docs_router(), prefix="/v2/problems")
+
+    @app.get("/t", responses=problems(VerbatimAbsolute))
+    async def teapot() -> dict:
+        raise VerbatimAbsolute(detail="no")
+
+    @app.get("/b", responses=problems(VerbatimBare))
+    async def bare() -> dict:
+        raise VerbatimBare(detail="no")
+
+    client = TestClient(app)
+    assert client.get("/t").json()["type"] == "/static/errors/teapot"
+    assert client.get("/b").json()["type"] == "just-this"
+
+
+def test_explicit_type_const_emitted_verbatim_in_openapi():
+    app = FastAPI()
+    add_problem_handlers(app)
+    app.include_router(get_problem_docs_router(), prefix="/v2/problems")
+
+    @app.get("/t", responses=problems(VerbatimAbsolute))
+    async def teapot() -> dict:
+        raise VerbatimAbsolute(detail="no")
+
+    doc = TestClient(app).get("/openapi.json").json()
+    const = doc["components"]["schemas"]["VerbatimAbsolute"]["properties"]["type"]["const"]
+    assert const == "/static/errors/teapot"
 
 
 def test_type_falls_back_to_declared_slug_when_docs_not_mounted():
