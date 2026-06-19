@@ -3,11 +3,11 @@ import re
 from typing import Annotated
 
 import pytest
-from fastapi import FastAPI, Query
+from fastapi import APIRouter, FastAPI, Query
 from fastapi.testclient import TestClient
 
 from fastapi_rfc9457.models import PROBLEM_MEDIA_TYPE
-from fastapi_rfc9457.openapi import problems, register_problem_components
+from fastapi_rfc9457.openapi import problems, register_problem_components, route_problem_types
 from fastapi_rfc9457.problem import Problem
 
 
@@ -253,3 +253,66 @@ def test_register_components_preserves_app_metadata():
     assert doc["servers"] == [{"url": "https://api.example.com"}]
     assert doc["info"]["title"] == "My API"
     assert doc["info"]["version"] == "9.9.9"
+
+
+# --- routes reached through include_router (FastAPI >= 0.137 nests them under an
+# --- _IncludedRouter wrapper rather than flattening onto app.routes; issue #10).
+
+
+def test_included_router_response_uses_problem_media_type():
+    router = APIRouter()
+
+    @router.get("/c", responses=problems(Charged))
+    async def c() -> dict:
+        return {}
+
+    app = FastAPI()
+    app.include_router(router)
+
+    resp = _openapi(app)["paths"]["/c"]["get"]["responses"]["403"]
+    assert list(resp["content"]) == [PROBLEM_MEDIA_TYPE]
+    assert resp["content"][PROBLEM_MEDIA_TYPE]["schema"] == {"$ref": "#/components/schemas/Charged"}
+
+
+def test_included_router_with_prefix_rewrites_the_prefixed_path():
+    router = APIRouter()
+
+    @router.get("/c", responses=problems(Charged))
+    async def c() -> dict:
+        return {}
+
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+
+    resp = _openapi(app)["paths"]["/api/c"]["get"]["responses"]["403"]
+    assert list(resp["content"]) == [PROBLEM_MEDIA_TYPE]
+
+
+def test_nested_included_routers_response_uses_problem_media_type():
+    inner = APIRouter()
+
+    @inner.get("/c", responses=problems(Charged))
+    async def c() -> dict:
+        return {}
+
+    outer = APIRouter()
+    outer.include_router(inner, prefix="/inner")
+
+    app = FastAPI()
+    app.include_router(outer, prefix="/api")
+
+    resp = _openapi(app)["paths"]["/api/inner/c"]["get"]["responses"]["403"]
+    assert list(resp["content"]) == [PROBLEM_MEDIA_TYPE]
+
+
+def test_route_problem_types_discovers_types_on_included_router():
+    router = APIRouter()
+
+    @router.get("/c", responses=problems(Charged))
+    async def c() -> dict:
+        return {}
+
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
+
+    assert Charged in route_problem_types(app)

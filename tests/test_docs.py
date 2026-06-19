@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 from fastapi_rfc9457.docs import get_problem_docs_router
@@ -98,3 +98,30 @@ def test_empty_explicit_falls_back_to_route_derived():
     # Calling with no args is the route-derived mode, not an error.
     router = get_problem_docs_router()
     assert any(getattr(r, "name", "") == "problem-doc" for r in router.routes)
+
+
+def _route_derived_included_app() -> FastAPI:
+    """Problem-raising route mounted via include_router rather than on the app.
+
+    FastAPI >= 0.137 nests included routes under an _IncludedRouter wrapper, so
+    the type must still be discovered for its doc page to resolve (issue #10).
+    """
+    app = FastAPI()
+    add_problem_handlers(app)
+    app.include_router(get_problem_docs_router(), prefix="/problems", tags=["problems"])
+
+    router = APIRouter()
+
+    @router.get("/charge", responses=problems(DocOutOfCredit))
+    async def charge() -> dict:
+        raise DocOutOfCredit(detail="no", balance=1)
+
+    app.include_router(router, prefix="/api")
+    return app
+
+
+def test_route_derived_serves_pages_for_types_on_included_router():
+    client = TestClient(_route_derived_included_app())
+    r = client.get("/problems/doc-out-of-credit", headers={"accept": "application/json"})
+    assert r.status_code == 200
+    assert r.json()["title"] == "Out of Credit"

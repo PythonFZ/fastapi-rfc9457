@@ -19,7 +19,7 @@ from typing import Any, Literal, Union, get_args, get_origin
 
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, iter_route_contexts
 from pydantic import BaseModel, ConfigDict, create_model
 
 from .builtins import ValidationProblem
@@ -152,7 +152,10 @@ def route_problem_types(app: FastAPI) -> list[type[Problem]]:
         Every problem type referenced by the app's route responses.
     """
     seen: dict[type[Problem], None] = {}
-    for route in app.routes:
+    # iter_route_contexts descends into include_router's _IncludedRouter wrapper
+    # (FastAPI >=0.137 no longer flattens those onto app.routes); see issue #10.
+    for ctx in iter_route_contexts(app.routes):
+        route = ctx.original_route
         if not isinstance(route, APIRoute):
             continue
         for entry in route.responses.values():
@@ -404,10 +407,17 @@ def register_problem_components(app: FastAPI) -> None:
         components: dict[str, Any] = schema.setdefault("components", {}).setdefault("schemas", {})
 
         seen_uris: dict[str, type[Problem]] = {}
-        for route in app.routes:
-            if not isinstance(route, APIRoute) or not route.methods:
+        # Walk via iter_route_contexts (FastAPI's own OpenAPI traversal) rather
+        # than app.routes directly: FastAPI >=0.137 nests include_router routes
+        # under an _IncludedRouter wrapper, and the context yields the effective,
+        # prefix-applied path_format/methods that match the paths we just built.
+        for ctx in iter_route_contexts(app.routes):
+            route = ctx.original_route
+            methods = ctx.methods
+            path = ctx.path_format
+            if not isinstance(route, APIRoute) or not methods or path is None:
                 continue
-            path_item = paths.get(route.path_format)
+            path_item = paths.get(path)
             if path_item is None:
                 continue
             for status, entry in route.responses.items():
@@ -420,7 +430,7 @@ def register_problem_components(app: FastAPI) -> None:
                     # Swagger UI samples only the first oneOf branch; name an
                     # example per member so it offers a per-type dropdown.
                     media["examples"] = _problem_examples(members)
-                for method in route.methods:
+                for method in methods:
                     operation = path_item.get(method.lower())
                     if not isinstance(operation, dict):
                         continue
