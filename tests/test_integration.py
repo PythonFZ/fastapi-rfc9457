@@ -44,11 +44,7 @@ def test_one_call_wires_handlers_and_openapi():
 
 
 def test_state_safety_shared_problem_across_paths():
-    """Each request gets its own resolved `instance`; the source object is unchanged.
-
-    Problems are no longer frozen (issue #9), so this safety comes from the handler
-    treating the raised problem as read-only rather than from immutability.
-    """
+    """Each request gets its own resolved `instance`."""
     client = TestClient(build_app())
     a = ProblemDetail.model_validate(client.get("/posts/aaa").json())
     b = ProblemDetail.model_validate(client.get("/posts/bbb").json())
