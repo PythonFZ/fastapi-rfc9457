@@ -59,12 +59,58 @@ explicitly to emit a literal URI instead.
 
 ![Problem type documentation page](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/doc-page.png)
 
-## Features
+## Comparison with native FastAPI
+see [Handling Errors](https://fastapi.tiangolo.com/tutorial/handling-errors/)
 
-- **Typed + validated extension members** that round-trip through serialization, OpenAPI, and the client.
-- **Accurate per-route OpenAPI** under `application/problem+json`.
-- **Structured 422** that preserves field + list-index mapping (no flattening).
-- **Client-side parsing** back into typed problems.
+```python
+class OutOfCreditError(Exception):
+    def __init__(self, detail: str, balance: int) -> None:
+        self.detail, self.balance = detail, balance
+
+@app.exception_handler(OutOfCreditError)
+async def _(request: Request, exc: OutOfCreditError) -> JSONResponse:
+    return JSONResponse({"detail": exc.detail, "balance": exc.balance}, 403)
+
+class OutOfCreditBody(BaseModel):
+    detail: str
+    balance: int
+
+@app.get("/charge", responses={403: {"model": OutOfCreditBody}})
+async def charge(token: str | None = None) -> dict:
+    if token is None:
+        raise HTTPException(401, "Log in first")
+    raise OutOfCreditError("Not enough credit", balance=30)
+```
+
+```python
+# fastapi-rfc9457 enables a single class for the exception, the body, and the OpenAPI schema
+from fastapi_rfc9457 import NotAuthenticated, Problem, problems  # NotAuthenticated ships built in
+
+class OutOfCredit(Problem):
+    title = "Out of Credit"
+    status = 403
+    balance: int
+
+@app.get("/charge", responses=problems(NotAuthenticated, OutOfCredit))
+async def charge(token: str | None = None) -> dict:
+    if token is None:
+        raise NotAuthenticated(detail="Log in first")
+    raise OutOfCredit(detail="Not enough credit", balance=30)
+    # → 403 application/problem+json
+    #   {"type": "/problems/out-of-credit", "title": "Out of Credit",
+    #    "status": 403, "detail": "Not enough credit", "balance": 30}
+```
+
+| | Plain FastAPI | fastapi-rfc9457 |
+|---|---|:---:|
+| Typed extra fields in the body **and** OpenAPI | exception + handler + model, by hand | ✅ |
+| Errors documented as `application/problem+json` | ❌ (`application/json`) | ✅ |
+| Same-status errors as `oneOf` + Examples dropdown | ❌ | ✅ |
+| Dereferenceable `type` URIs with doc pages | ❌ | ✅ |
+
+## Similar projects
+
+- [`fastapi-problem`](https://github.com/NRWLDev/fastapi-problem)
 
 ## Install
 
