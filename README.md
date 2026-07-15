@@ -63,10 +63,8 @@ explicitly to emit a literal URI instead.
 
 ## Typed exceptions on the client
 
-The base install is a lean, Pydantic-only client: it parses
-`application/problem+json` back into the same typed problem the server raised,
-so the consumer catches `OutOfCredit`, not a status code. Wire `httpx_raise_hook`
-onto an httpx client and every problem response re-raises itself:
+Client-side, the package can parse
+`application/problem+json` back into typed problems the server raised.
 
 ```python
 import httpx
@@ -78,8 +76,11 @@ class OutOfCredit(Problem):      # the type the server declares, shared or re-st
     status = 403
     balance: int
 
-with httpx.Client(base_url="http://localhost:8000",
-                  event_hooks={"response": [httpx_raise_hook()]}) as client:
+with httpx.Client(
+    base_url="http://localhost:8000",
+    event_hooks={
+        "response": [httpx_raise_hook()]
+    }) as client:
     try:
         client.get("/charge")
     except OutOfCredit as exc:
@@ -88,7 +89,7 @@ with httpx.Client(base_url="http://localhost:8000",
 
 Prefer to parse explicitly? `parse_problem(response)` returns the typed `Problem`
 (or a generic `ProblemDetail` for an unknown `type`), and `raise_for_problem(response)`
-raises it. Both accept an httpx/requests response, a `dict`, `bytes`, or `str`.
+raises it.
 
 ## Comparison with native FastAPI
 see [Handling Errors](https://fastapi.tiangolo.com/tutorial/handling-errors/)
