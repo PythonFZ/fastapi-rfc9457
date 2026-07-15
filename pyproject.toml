@@ -10,14 +10,14 @@ requires-python = ">=3.11"
 dynamic = ["version"]
 license = "MIT"
 authors = [{ name = "Fabian Zills" }]
-dependencies = ["fastapi>=0.137.2", "pydantic>=2.13.4"]
+dependencies = ["pydantic>=2.13.4"]
 
 [project.urls]
 Repository = "https://github.com/PythonFZ/fastapi-rfc9457"
 Releases = "https://github.com/PythonFZ/fastapi-rfc9457/releases"
 
 [project.optional-dependencies]
-client = ["httpx>=0.27"]
+server = ["fastapi>=0.137.2"]
 
 [dependency-groups]
 dev = [
@@ -28,6 +28,7 @@ dev = [
     "ruff>=0.8",
     "pre-commit>=4.0",
     "uvicorn>=0.49.0",
+    "fastapi>=0.137.2",
 ]
 
 [tool.hatch.version]

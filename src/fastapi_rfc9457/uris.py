@@ -11,8 +11,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from starlette.routing import NoMatchFound
-
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
@@ -94,6 +92,8 @@ def resolve_type_uri(app: FastAPI, cls: type[Problem]) -> str:
         or the bare derived slug when it isn't — a valid RFC 9457 relative
         reference that simply isn't dereferenceable.
     """
+    from starlette.routing import NoMatchFound
+
     if cls._type_is_explicit:
         return cls.type or "about:blank"
     slug = slug_of(cls)

@@ -10,7 +10,9 @@ itself in OpenAPI, and parses back into a typed exception on the client.
 
 ```python
 from fastapi import FastAPI
-from fastapi_rfc9457 import Problem, add_problem_handlers, get_problem_docs_router, problems
+
+from fastapi_rfc9457 import Problem
+from fastapi_rfc9457.server import add_problem_handlers, get_problem_docs_router, problems
 
 
 class OutOfCredit(Problem):
@@ -59,6 +61,36 @@ explicitly to emit a literal URI instead.
 
 ![Problem type documentation page](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/doc-page.png)
 
+## Typed exceptions on the client
+
+Client-side, the package can parse
+`application/problem+json` back into typed problems the server raised.
+
+```python
+import httpx
+from fastapi_rfc9457 import Problem, httpx_raise_hook
+
+
+class OutOfCredit(Problem):      # the type the server declares, shared or re-stated
+    title = "Out of Credit"
+    status = 403
+    balance: int
+
+with httpx.Client(
+    base_url="http://localhost:8000",
+    event_hooks={
+        "response": [httpx_raise_hook()]
+    }) as client:
+    try:
+        client.get("/charge")
+    except OutOfCredit as exc:
+        print(exc.balance)       # extension members round-trip back as typed attributes
+```
+
+Prefer to parse explicitly? `parse_problem(response)` returns the typed `Problem`
+(or a generic `ProblemDetail` for an unknown `type`), and `raise_for_problem(response)`
+raises it.
+
 ## Comparison with native FastAPI
 see [Handling Errors](https://fastapi.tiangolo.com/tutorial/handling-errors/)
 
@@ -84,7 +116,8 @@ async def charge(token: str | None = None) -> dict:
 
 ```python
 # fastapi-rfc9457 enables a single class for the exception, the body, and the OpenAPI schema
-from fastapi_rfc9457 import NotAuthenticated, Problem, problems  # NotAuthenticated ships built in
+from fastapi_rfc9457 import NotAuthenticated, Problem  # NotAuthenticated ships built in
+from fastapi_rfc9457.server import problems
 
 class OutOfCredit(Problem):
     title = "Out of Credit"
@@ -115,7 +148,8 @@ async def charge(token: str | None = None) -> dict:
 ## Install
 
 ```bash
-uv add fastapi-rfc9457          # add fastapi-rfc9457[client] for the httpx hook
+uv add fastapi-rfc9457[server]   # FastAPI apps: handlers, OpenAPI, docs router
+uv add fastapi-rfc9457           # lean client: author + parse problems, Pydantic only
 ```
 
 ## Example
@@ -125,7 +159,7 @@ cd example && uv run uvicorn main:app --reload   # then open localhost:8000/docs
 ```
 
 See [`example/`](./example) for the full runnable app, and
-[`example/client.py`](./example/client.py) for the httpx hook (`fastapi-rfc9457[client]`)
+[`example/client.py`](./example/client.py) for the httpx hook (`uv add fastapi-rfc9457 httpx`)
 that raises those problems back as typed exceptions on the consumer side.
 
 ## Notes
