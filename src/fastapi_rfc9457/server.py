@@ -9,9 +9,9 @@ if importlib.util.find_spec("fastapi") is None:
         "fastapi-rfc9457 server features need FastAPI — install fastapi-rfc9457[server]"
     )
 
-from .docs import get_problem_docs_router  # noqa: E402
-from .integration import add_problem_handlers, problem_details_lifespan  # noqa: E402
-from .openapi import problems  # noqa: E402
+from .docs import get_problem_docs_router
+from .integration import add_problem_handlers, problem_details_lifespan
+from .openapi import problems
 
 __all__ = [
     "add_problem_handlers",
