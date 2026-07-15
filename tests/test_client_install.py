@@ -35,7 +35,7 @@ def test_bare_import_pulls_neither_fastapi_nor_starlette():
 def test_client_symbols_work_without_fastapi():
     result = _run(
         """
-        from fastapi_rfc9457 import NotFound, Problem, parse_problem, raise_for_problem  # noqa: F401
+        from fastapi_rfc9457 import NotFound, Problem, parse_problem, raise_for_problem
         problem = parse_problem(
             {"type": "not-found", "title": "Not Found", "status": 404}
         )

@@ -151,15 +151,6 @@ uv add fastapi-rfc9457[server]   # FastAPI apps: handlers, OpenAPI, docs router
 uv add fastapi-rfc9457           # lean client: author + parse problems, Pydantic only
 ```
 
-The base install is a Pydantic-only client (`Problem`, `parse_problem`,
-`raise_for_problem`, `httpx_raise_hook`). The `server` extra adds FastAPI and
-unlocks `fastapi_rfc9457.server` (`add_problem_handlers`, `get_problem_docs_router`,
-`problems`, `problem_details_lifespan`).
-
-> **Upgrading from 0.1.x (0.2.0 is a breaking change):** add the `server` extra
-> (`uv add fastapi-rfc9457[server]`) and import the server helpers from
-> `fastapi_rfc9457.server` — they used to live on the top-level package.
-
 ## Example
 
 ```bash
