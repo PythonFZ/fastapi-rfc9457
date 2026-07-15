@@ -17,10 +17,7 @@ from .builtins import (
     ValidationProblem,
 )
 from .client import httpx_raise_hook, parse_problem, raise_for_problem
-from .docs import get_problem_docs_router
-from .integration import add_problem_handlers, problem_details_lifespan
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
-from .openapi import problems
 from .problem import Problem, ProblemError
 
 try:
@@ -44,11 +41,7 @@ __all__ = [
     "UnprocessableContent",
     "ValidationProblem",
     "__version__",
-    "add_problem_handlers",
-    "get_problem_docs_router",
     "httpx_raise_hook",
     "parse_problem",
-    "problem_details_lifespan",
-    "problems",
     "raise_for_problem",
 ]

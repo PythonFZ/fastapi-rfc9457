@@ -1,8 +1,8 @@
 """Client-side demo: the httpx hook turns problem+json back into typed exceptions.
 
-Needs the ``client`` extra::
+Needs httpx alongside the lean client::
 
-    uv add fastapi-rfc9457[client]
+    uv add fastapi-rfc9457 httpx
 
 Start the demo server in one shell::
 

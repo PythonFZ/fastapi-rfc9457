@@ -101,17 +101,17 @@ wheels = [
 name = "fastapi-rfc9457"
 source = { editable = "." }
 dependencies = [
-    { name = "fastapi" },
     { name = "pydantic" },
 ]
 
 [package.optional-dependencies]
-client = [
-    { name = "httpx" },
+server = [
+    { name = "fastapi" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "fastapi" },
     { name = "httpx" },
     { name = "pre-commit" },
     { name = "pyright" },
@@ -123,14 +123,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", specifier = ">=0.137.2" },
-    { name = "httpx", marker = "extra == 'client'", specifier = ">=0.27" },
+    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.137.2" },
     { name = "pydantic", specifier = ">=2.13.4" },
 ]
-provides-extras = ["client"]
+provides-extras = ["server"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "fastapi", specifier = ">=0.137.2" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pre-commit", specifier = ">=4.0" },
     { name = "pyright", specifier = ">=1.1.390" },

@@ -10,9 +10,9 @@ raised ``FrozenInstanceError``, masking the problem as a generic 500.
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from fastapi_rfc9457 import add_problem_handlers
 from fastapi_rfc9457.models import PROBLEM_MEDIA_TYPE, ProblemDetail
 from fastapi_rfc9457.problem import Problem
+from fastapi_rfc9457.server import add_problem_handlers
 
 
 class PostNotFound(Problem):

@@ -17,7 +17,7 @@ curl -s localhost:8000/problems/out-of-credit  # dereferenced type-doc page
 
 ## Consuming it with the httpx hook
 
-`fastapi-rfc9457[client]` ships an httpx event hook that turns every
+`fastapi-rfc9457` ships an httpx event hook that turns every
 `application/problem+json` reply back into the same typed exception the server
 raised. [`client.py`](./client.py) is a runnable consumer of the server above.
 
@@ -25,7 +25,7 @@ With the demo server running (above), in another shell from this `example/`
 directory:
 
 ```bash
-uv add fastapi-rfc9457[client]   # the httpx extra
+uv add fastapi-rfc9457 httpx     # the lean client + your HTTP client
 uv run client.py                 # connects to http://localhost:8000
 ```
 

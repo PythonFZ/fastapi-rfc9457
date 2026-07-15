@@ -6,9 +6,8 @@ from typing import Annotated
 
 from fastapi import FastAPI, Query
 
-from fastapi_rfc9457 import (
-    NotAuthenticated,
-    Problem,
+from fastapi_rfc9457 import NotAuthenticated, Problem
+from fastapi_rfc9457.server import (
     add_problem_handlers,
     get_problem_docs_router,
     problems,
