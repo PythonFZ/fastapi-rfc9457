@@ -123,8 +123,13 @@ class Problem(Exception, metaclass=_ProblemMeta):
 
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
-        cls._type_is_explicit = cls.__dict__.get("type") is not None
-        cls.type = cls.type if cls.type is not None else _derive_type(cls.__name__)
+        # Key off the class's OWN `type`, never the inherited lookup: an
+        # intermediate base derives and stores its own slug, so `cls.type` would
+        # resolve to the base's value and every child would inherit it instead of
+        # deriving from its own name.
+        own_type = cls.__dict__.get("type")
+        cls._type_is_explicit = own_type is not None
+        cls.type = own_type if own_type is not None else _derive_type(cls.__name__)
 
 
 def iter_problem_types() -> Iterator[type[Problem]]:
