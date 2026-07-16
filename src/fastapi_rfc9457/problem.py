@@ -127,6 +127,13 @@ class Problem(Exception, metaclass=_ProblemMeta):
         cls._type_is_explicit = own_type is not None
         cls.type = own_type if own_type is not None else _derive_type(cls.__name__)
 
+    def __str__(self) -> str:
+        """Human-readable representation for logs and traceback tails."""
+
+        head = f"{getattr(self, 'status', '')} {getattr(self, 'title', '')}".strip()
+        head = head or type(self).__name__
+        return f"{head} — {self.detail}" if self.detail else head
+
 
 def iter_problem_types() -> Iterator[type[Problem]]:
     """Yield every defined :class:`Problem` subclass, transitively.

@@ -179,6 +179,22 @@ def test_extension_fields_excludes_standard_members():
     assert extension_fields(PostNotFound) == {}
 
 
+def test_str_is_human_readable_with_detail():
+    err = OutOfCredit(detail="Your balance is too low.", balance=30, accounts=[])
+    assert str(err) == "403 Out of Credit — Your balance is too low."
+
+
+def test_str_omits_detail_when_absent():
+    err = OutOfCredit(balance=30, accounts=[])
+    assert str(err) == "403 Out of Credit"
+
+
+def test_str_falls_back_when_status_and_title_unset():
+    # A bare `Problem` (or a half-authored subclass) has no `status`/`title`.
+    # `str()` must still yield something rather than raising.
+    assert str(Problem(detail="boom")) == "Problem — boom"
+
+
 def test_problem_error_wraps_a_detail():
     pd = ProblemDetail(title="Gone", status=410)
     err = ProblemError(pd)
