@@ -117,6 +117,41 @@ def test_explicit_type_override_is_respected():
     assert PostNotFound.type == "/problems/tp-post-not-found"
 
 
+def test_child_of_intermediate_base_derives_its_own_slug():
+    # An intermediate Problem base derives and stores its own `type`. A child must
+    # still derive from its OWN name, not inherit the base's slug — otherwise every
+    # child of a shared base collides on one type URI and never round-trips.
+    class BillingProblem(Problem):
+        title = "Billing"
+        status = 402
+
+    class OutOfCreditB(BillingProblem):
+        pass
+
+    class RateLimitedB(BillingProblem):
+        pass
+
+    assert BillingProblem.type == "billing"
+    assert OutOfCreditB.type == "out-of-credit-b"
+    assert RateLimitedB.type == "rate-limited-b"
+    assert not OutOfCreditB._type_is_explicit
+
+
+def test_child_of_explicitly_typed_base_derives_not_inherits():
+    # A child of a base with an *explicit* type is not itself explicit: it derives
+    # its own type rather than silently sharing the base's URI.
+    class RootProblem(Problem):
+        type = "/problems/root"
+        title = "Root"
+        status = 400
+
+    class LeafProblem(RootProblem):
+        pass
+
+    assert LeafProblem.type == "leaf"
+    assert not LeafProblem._type_is_explicit
+
+
 def test_iter_problem_types_discovers_defined_subclasses():
     discovered = set(iter_problem_types())
     assert OutOfCredit in discovered
