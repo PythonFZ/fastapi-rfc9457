@@ -66,14 +66,23 @@ def extension_fields(cls: type) -> dict[str, type]:
     }
 
 
-def _describe(head: str, detail: str | None, extensions: Mapping[str, Any]) -> str:
+def _describe(
+    status: int | None,
+    title: str | None,
+    fallback: str,
+    detail: str | None,
+    extensions: Mapping[str, Any],
+) -> str:
     """Render a problem for ``str()``.
 
     .. code-block:: text
 
         404 No such room — room='kitchen'
         404 No such room — the room left (room='kitchen')
+
+    ``fallback`` heads the line when ``status`` and ``title`` are both empty.
     """
+    head = f"{status or ''} {title or ''}".strip() or fallback
     fields = ", ".join(f"{name}={value!r}" for name, value in extensions.items())
     if detail and fields:
         return f"{head} — {detail} ({fields})"
@@ -215,13 +224,18 @@ class Problem(Exception, metaclass=_ProblemMeta):
     def __str__(self) -> str:
         """Human-readable representation for logs and traceback tails."""
 
-        head = f"{getattr(self, 'status', '')} {getattr(self, 'title', '')}".strip()
         extensions = {
             f.name: getattr(self, f.name)
             for f in dataclasses.fields(type(self))
             if f.repr and f.name not in _STANDARD_FIELDS
         }
-        return _describe(head or type(self).__name__, self.detail, extensions)
+        return _describe(
+            getattr(self, "status", None),
+            getattr(self, "title", None),
+            type(self).__name__,
+            self.detail,
+            extensions,
+        )
 
 
 def require_concrete(cls: type[Problem]) -> None:
@@ -321,7 +335,9 @@ class ProblemError(Exception):
         self.problem = problem
         super().__init__(
             _describe(
-                f"{problem.status} {problem.title}",
+                getattr(problem, "status", None),
+                getattr(problem, "title", None),
+                type(self).__name__,
                 problem.detail,
                 problem.model_extra or {},
             )

@@ -246,6 +246,15 @@ def test_problem_error_str_without_extras_is_the_head():
     assert str(ProblemError(ProblemDetail(title="Gone", status=410))) == "410 Gone"
 
 
+def test_problem_error_str_strips_an_empty_title():
+    assert str(ProblemError(ProblemDetail(title="", status=410))) == "410"
+
+
+def test_problem_error_str_falls_back_when_status_and_title_missing():
+    pd = ProblemDetail.model_construct(detail="boom")
+    assert str(ProblemError(pd)) == "ProblemError — boom"
+
+
 def test_problem_error_wraps_a_detail():
     pd = ProblemDetail(title="Gone", status=410)
     err = ProblemError(pd)
