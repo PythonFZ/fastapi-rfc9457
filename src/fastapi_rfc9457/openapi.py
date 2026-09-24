@@ -11,6 +11,7 @@ response to ``application/problem+json`` (FastAPI emits models under
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import types
 from functools import reduce
@@ -74,7 +75,11 @@ def _wire_model(cls: type[Problem]) -> type[BaseModel]:
     cached = _WIRE_CACHE.get(cls)
     if cached is not None:
         return cached
-    fields: dict[str, Any] = {name: (typ, ...) for name, typ in extension_fields(cls).items()}
+    defaults = {f.name: f.default for f in dataclasses.fields(cls)}
+    fields: dict[str, Any] = {
+        name: (typ, ... if defaults[name] is dataclasses.MISSING else defaults[name])
+        for name, typ in extension_fields(cls).items()
+    }
     model = create_model(  # type: ignore[call-overload]
         cls.__name__,
         __base__=_WireBase,
@@ -116,7 +121,39 @@ def problems(*types_: type[Problem]) -> dict[int | str, dict[str, Any]]:
         model: Any = wires[0] if len(wires) == 1 else _union(wires)
         descriptions = [(t.__doc__ or t.title).strip() for t in group]
         responses[status] = {"model": model, "description": " / ".join(descriptions)}
+        headers = _header_objects(group)
+        if headers:
+            responses[status]["headers"] = headers
     return responses
+
+
+def _header_objects(group: list[type[Problem]]) -> dict[str, dict[str, Any]]:
+    """Build OpenAPI Header Objects for the problem types sharing one status.
+
+    Parameters
+    ----------
+    group : list[type[Problem]]
+        The problem types documented under one status code.
+
+    Returns
+    -------
+    dict[str, dict[str, Any]]
+        Header name -> Header Object. One example value is set as ``example``;
+        several distinct values are listed under ``examples``, keyed by class name.
+    """
+    objects: dict[str, dict[str, Any]] = {}
+    examples: dict[str, dict[str, str]] = {}
+    for problem_type in group:
+        for name, description in problem_type.headers.items():
+            objects.setdefault(name, {"description": description, "schema": {"type": "string"}})
+        for name, value in problem_type.header_examples().items():
+            examples.setdefault(name, {})[problem_type.__name__] = value
+    for name, by_class in examples.items():
+        if len(set(by_class.values())) == 1:
+            objects[name]["example"] = next(iter(by_class.values()))
+        else:
+            objects[name]["examples"] = {cls: {"value": v} for cls, v in by_class.items()}
+    return objects
 
 
 def _problem_wire_members(model: Any) -> list[type[BaseModel]] | None:

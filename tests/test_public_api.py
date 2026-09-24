@@ -17,6 +17,7 @@ def test_client_symbols_are_exported():
         "httpx_raise_hook",
         "BadRequest",
         "NotAuthenticated",
+        "MethodNotAllowed",
         "Forbidden",
         "NotFound",
         "Conflict",

@@ -4,6 +4,7 @@ from fastapi_rfc9457.builtins import (
     Forbidden,
     InternalServerError,
     InvalidParam,
+    MethodNotAllowed,
     NotAuthenticated,
     NotFound,
     TooManyRequests,
@@ -18,6 +19,7 @@ def test_builtin_statuses():
     assert NotAuthenticated.status == 401
     assert Forbidden.status == 403
     assert NotFound.status == 404
+    assert MethodNotAllowed.status == 405
     assert Conflict.status == 409
     assert UnprocessableContent.status == 422
     assert TooManyRequests.status == 429

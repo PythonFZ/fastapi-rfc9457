@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from http import HTTPStatus
 from typing import cast
 
@@ -49,10 +49,11 @@ def build_wire(problem: Problem, *, instance: str | None, type_uri: str) -> Prob
     )
 
 
-def _respond(detail: ProblemDetail) -> Response:
+def _respond(detail: ProblemDetail, headers: Mapping[str, str] | None = None) -> Response:
     return Response(
         content=detail.model_dump_json(exclude_none=True),
         status_code=detail.status,
+        headers=headers,
         media_type=PROBLEM_MEDIA_TYPE,
     )
 
@@ -78,7 +79,8 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
 
     async def problem_handler(request: Request, exc: Problem) -> Response:
         type_uri = resolve_type_uri(request.app, type(exc))
-        return _respond(build_wire(exc, instance=_instance(request), type_uri=type_uri))
+        wire = build_wire(exc, instance=_instance(request), type_uri=type_uri)
+        return _respond(wire, exc.response_headers())
 
     async def validation_handler(request: Request, exc: RequestValidationError) -> Response:
         params: list[InvalidParam] = []
@@ -116,10 +118,7 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
             detail=exc.detail if isinstance(exc.detail, str) else None,
             instance=_instance(request),
         )
-        response = _respond(wire)
-        if exc.headers:
-            response.headers.update(exc.headers)
-        return response
+        return _respond(wire, exc.headers)
 
     async def unhandled_handler(request: Request, exc: Exception) -> Response:
         wire = ProblemDetail(

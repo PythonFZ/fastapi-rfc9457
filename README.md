@@ -61,6 +61,20 @@ explicitly to emit a literal URI instead.
 
 ![Problem type documentation page](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/doc-page.png)
 
+## Response headers
+
+A problem type declares the headers it sends in `headers` (name → OpenAPI description) and
+returns their values from `response_headers()`. The built-ins send the headers RFC 9110 asks for:
+
+```python
+raise NotAuthenticated()                 # WWW-Authenticate: Bearer
+raise TooManyRequests(retry_after=30)    # Retry-After: 30
+raise MethodNotAllowed(allow=["GET"])    # Allow: GET
+
+class BasicAuthRequired(NotAuthenticated):
+    challenge = 'Basic realm="api"'      # WWW-Authenticate: Basic realm="api"
+```
+
 ## Typed exceptions on the client
 
 Client-side, the package can parse
