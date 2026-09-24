@@ -24,8 +24,8 @@ def add_problem_handlers(
 ) -> None:
     """Register the four problem handlers and the OpenAPI component registration.
 
-    Does **not** mount the docs router (mount it explicitly). A second call with
-    the same ``validation`` and ``internal`` warns and returns.
+    Mount the docs router separately. A second call with the same ``validation``
+    and ``internal`` warns and returns.
 
     Parameters
     ----------
@@ -37,20 +37,19 @@ def add_problem_handlers(
     instance_from_request : bool, optional
         Auto-fill ``instance`` from the request path when unset, by default True.
     validation : type[ValidationProblem], optional
-        The class a request-validation failure answers with (on the wire, in
-        OpenAPI and on the docs page), by default ``ValidationProblem``.
+        Class for 422 responses, the OpenAPI 422 schema and its docs page.
     internal : type[InternalServerError], optional
-        The class an unhandled exception answers with, by default
-        ``InternalServerError``.
+        Class for 500 responses and its docs page.
 
     Raises
     ------
     TypeError
-        If ``validation`` or ``internal`` subclasses a different default, is
-        abstract, changes the default's ``status`` or declares extension fields
-        of its own.
+        If ``validation`` or ``internal`` is outside its default's hierarchy,
+        abstract, sets another ``status``, or adds an extension field without a
+        default.
     ValueError
-        If the app is wired already with a different ``validation`` or ``internal``.
+        If an earlier call wired the app with other ``validation`` or ``internal``
+        classes.
     """
     builtins = BuiltinProblems(validation=validation, internal=internal)
     wired: BuiltinProblems | None = getattr(app.state, _BUILTINS_STATE, None)

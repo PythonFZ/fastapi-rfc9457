@@ -27,19 +27,16 @@ class NamedBroken(InternalServerError, AppError):
     title = "Broken"
 
 
-class AbstractInvalid(ValidationProblem, abstract=True):
-    """An abstract validation base."""
+class AbstractInvalid(ValidationProblem, abstract=True): ...
 
 
 class CodedInvalid(ValidationProblem):
-    """A validation class declaring a field the 422 handler never writes."""
+    """A required field the 422 handler cannot fill."""
 
     code: str
 
 
 class Teapot(InternalServerError):
-    """An internal class answering with another status."""
-
     status = 418
 
 
@@ -62,8 +59,6 @@ class HintedInvalid(ValidationProblem):
 
 
 class Unrelated(Problem):
-    """A problem outside the validation hierarchy."""
-
     title = "Unrelated"
     status = 422
 

@@ -190,7 +190,7 @@ def _problem_wire_members(model: Any) -> list[type[BaseModel]] | None:
 
 
 def _app_members(app: FastAPI, members: list[type[BaseModel]]) -> list[type[BaseModel]]:
-    """Map each wire model to the one of the app's class for it, deduplicated."""
+    """Return ``members`` with the app's 422 and 500 classes swapped in, deduplicated."""
     builtins = BuiltinProblems.of(app)
     named = {ValidationProblem: builtins.validation, InternalServerError: builtins.internal}
     mapped: dict[type[BaseModel], None] = {}
@@ -367,11 +367,9 @@ def _ensure_component(components: dict[str, Any], model: type[BaseModel]) -> Non
 def _rewrite_validation_responses(
     paths: dict[str, Any], components: dict[str, Any], validation: type[Problem]
 ) -> None:
-    """Rewrite FastAPI's auto-generated 422 to ``application/problem+json``.
+    """Point every default ``HTTPValidationError`` 422 at ``validation``.
 
-    The runtime already emits ``validation`` as ``application/problem+json``;
-    this aligns the *documentation* (RFC 9457 §3) for every route FastAPI gave a
-    default ``HTTPValidationError`` 422.
+    Serves it as ``application/problem+json``, matching what the 422 handler sends.
     """
     model = _wire_model(validation)
     rewrote = False

@@ -70,12 +70,10 @@ class AuditedForbidden(Auditable):
 assert_type(AuditedForbidden(audit_id="a1").audit_id, str)
 
 
-class AppInvalid(ValidationProblem):
-    """This app's validation failure."""
+class AppInvalid(ValidationProblem): ...
 
 
-class AppBroken(InternalServerError):
-    """This app's unhandled failure."""
+class AppBroken(InternalServerError): ...
 
 
 add_problem_handlers(FastAPI(), validation=AppInvalid, internal=AppBroken)

@@ -67,8 +67,7 @@ def _render(cls: type[Problem], request: Request) -> Response:
 
 
 def _documented_types(app: Any) -> list[type[Problem]]:
-    """Types whose doc pages this app serves: those on its routes plus the two
-    classes ``add_problem_handlers`` answers with (validation 422, unhandled 500)."""
+    """Return the route problem types plus the app's 422 and 500 classes."""
     seen = {cls.type: cls for cls in route_problem_types(app)}
     builtins = BuiltinProblems.of(app)
     for cls in (builtins.validation, builtins.internal):

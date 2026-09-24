@@ -164,20 +164,13 @@ _BUILTINS_STATE = "_fastapi_rfc9457_builtins"
 
 @dataclass(frozen=True)
 class BuiltinProblems:
-    """The problem classes the validation and unhandled-exception handlers answer with.
-
-    Parameters
-    ----------
-    validation : type[ValidationProblem]
-        The class a request-validation failure answers with.
-    internal : type[InternalServerError]
-        The class an unhandled exception answers with.
+    """Problem classes the 422 (``validation``) and 500 (``internal``) handlers answer with.
 
     Raises
     ------
     TypeError
-        If a class subclasses a different default, is abstract, changes the
-        default's ``status`` or adds an extension field without a default.
+        If a class is outside its default's hierarchy, abstract, sets another
+        ``status``, or adds an extension field without a default.
     """
 
     validation: type[ValidationProblem] = ValidationProblem
@@ -206,12 +199,11 @@ class BuiltinProblems:
             ]
             if required:
                 raise TypeError(
-                    f"{name}={cls.__name__} requires {sorted(required)}; the handler "
-                    "fills only the fields of "
-                    f"{default.__name__}, so give them defaults."
+                    f"{name}={cls.__name__} needs defaults for {sorted(required)}; "
+                    f"the handler fills the fields of {default.__name__}."
                 )
 
     @classmethod
     def of(cls, app: FastAPI) -> BuiltinProblems:
-        """Return the classes stored on ``app``; the defaults for an unwired app."""
+        """Return the classes stored on ``app``, or the defaults."""
         return getattr(app.state, _BUILTINS_STATE, cls())
