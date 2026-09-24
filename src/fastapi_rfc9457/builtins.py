@@ -159,7 +159,7 @@ class ValidationProblem(Problem):
     errors: list[InvalidParam]
 
 
-_BUILTINS_STATE = "_fastapi_rfc9457_builtins"
+_WIRING_STATE = "_fastapi_rfc9457_wiring"
 
 
 @dataclass(frozen=True)
@@ -206,4 +206,23 @@ class BuiltinProblems:
     @classmethod
     def of(cls, app: FastAPI) -> BuiltinProblems:
         """Return the classes stored on ``app``, or the defaults."""
-        return getattr(app.state, _BUILTINS_STATE, cls())
+        wiring: Wiring | None = getattr(app.state, _WIRING_STATE, None)
+        return cls() if wiring is None else wiring.builtins
+
+
+@dataclass(frozen=True)
+class Wiring:
+    """The options ``add_problem_handlers`` wired an app with."""
+
+    builtins: BuiltinProblems
+    strip_debug: bool
+    instance_from_request: bool
+
+    def options(self) -> dict[str, object]:
+        """Return each option by its ``add_problem_handlers`` keyword."""
+        return {
+            "strip_debug": self.strip_debug,
+            "instance_from_request": self.instance_from_request,
+            "validation": self.builtins.validation,
+            "internal": self.builtins.internal,
+        }

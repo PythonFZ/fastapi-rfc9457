@@ -9,7 +9,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from typing_extensions import deprecated
 
-from .builtins import _BUILTINS_STATE, BuiltinProblems, InternalServerError, ValidationProblem
+from .builtins import (
+    _WIRING_STATE,
+    BuiltinProblems,
+    InternalServerError,
+    ValidationProblem,
+    Wiring,
+)
 from .handlers import make_handlers
 from .openapi import register_problem_components
 
@@ -24,8 +30,8 @@ def add_problem_handlers(
 ) -> None:
     """Register the four problem handlers and the OpenAPI component registration.
 
-    Mount the docs router separately. A second call with the same ``validation``
-    and ``internal`` warns and returns.
+    Mount the docs router separately. A second call with the same options warns
+    and returns.
 
     Parameters
     ----------
@@ -48,17 +54,22 @@ def add_problem_handlers(
         abstract, sets another ``status``, or adds an extension field without a
         default.
     ValueError
-        If an earlier call wired the app with other ``validation`` or ``internal``
-        classes.
+        If an earlier call wired the app with other options.
     """
     builtins = BuiltinProblems(validation=validation, internal=internal)
-    wired: BuiltinProblems | None = getattr(app.state, _BUILTINS_STATE, None)
+    wiring = Wiring(
+        builtins=builtins, strip_debug=strip_debug, instance_from_request=instance_from_request
+    )
+    wired: Wiring | None = getattr(app.state, _WIRING_STATE, None)
     if wired is not None:
-        if wired != builtins:
+        before, after = wired.options(), wiring.options()
+        differing = [name for name in before if before[name] is not after[name]]
+        if differing:
+            changes = ", ".join(
+                f"{name}={_label(before[name])} -> {_label(after[name])}" for name in differing
+            )
             raise ValueError(
-                f"add_problem_handlers wired this app with validation={wired.validation.__name__}, "
-                f"internal={wired.internal.__name__}; this call passes "
-                f"validation={validation.__name__}, internal={internal.__name__}."
+                f"add_problem_handlers already wired this app; this call changes {changes}."
             )
         warnings.warn(
             "add_problem_handlers was called more than once on this app; ignoring the repeat.",
@@ -72,8 +83,12 @@ def add_problem_handlers(
     for exc_type, handler in handlers.items():
         app.add_exception_handler(exc_type, handler)
 
-    setattr(app.state, _BUILTINS_STATE, builtins)
+    setattr(app.state, _WIRING_STATE, wiring)
     register_problem_components(app)
+
+
+def _label(value: object) -> str:
+    return value.__name__ if isinstance(value, type) else repr(value)
 
 
 @deprecated("Problem types are validated when defined; drop problem_details_lifespan.")

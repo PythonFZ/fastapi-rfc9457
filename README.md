@@ -106,7 +106,7 @@ add_problem_handlers(app, validation=Invalid, internal=Broken)
 
 The handlers send the headers these classes declare, and extension fields with defaults appear in the body.
 `add_problem_handlers` raises `TypeError` for a class outside its default's hierarchy, an abstract one, one that sets another `status`, or one that adds an extension field without a default.
-A second call on the same app with other classes raises `ValueError`.
+A second call on the same app with other options raises `ValueError`; an identical second call warns.
 
 ## Typed exceptions on the client
 

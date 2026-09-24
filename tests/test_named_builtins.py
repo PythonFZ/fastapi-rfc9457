@@ -222,11 +222,27 @@ def test_rejects_a_class_the_handler_cannot_answer_with(kwargs, message):
         add_problem_handlers(FastAPI(), **kwargs)
 
 
-def test_repeat_call_with_other_classes_raises():
+@pytest.mark.parametrize(
+    ("first", "repeat", "named"),
+    [
+        ({}, {"strip_debug": True}, "strip_debug"),
+        ({}, {"instance_from_request": False}, "instance_from_request"),
+        ({"validation": NamedInvalid}, {"validation": HintedInvalid}, "validation"),
+        ({"internal": NamedBroken}, {"internal": TracedBroken}, "internal"),
+    ],
+)
+def test_repeat_call_with_another_option_raises(first, repeat, named):
     app = FastAPI()
-    add_problem_handlers(app, validation=NamedInvalid)
-    with pytest.raises(ValueError, match="NamedInvalid"):
-        add_problem_handlers(app, validation=HintedInvalid)
+    add_problem_handlers(app, **first)
+    with pytest.raises(ValueError, match=named):
+        add_problem_handlers(app, **(first | repeat))
+
+
+def test_identical_repeat_call_warns():
+    app = FastAPI()
+    add_problem_handlers(app, strip_debug=True, validation=NamedInvalid)
+    with pytest.warns(UserWarning, match="more than once"):
+        add_problem_handlers(app, strip_debug=True, validation=NamedInvalid)
 
 
 def test_two_apps_keep_their_own_classes():
