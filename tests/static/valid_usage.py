@@ -79,3 +79,18 @@ class AppBroken(InternalServerError):
 
 
 add_problem_handlers(FastAPI(), validation=AppInvalid, internal=AppBroken)
+
+
+class AppError(Exception): ...
+
+
+class AppProblem(Problem, AppError, abstract=True): ...
+
+
+class Invalid(ValidationProblem, AppProblem): ...
+
+
+class Broken(InternalServerError, AppProblem): ...
+
+
+add_problem_handlers(FastAPI(), validation=Invalid, internal=Broken)

@@ -232,3 +232,16 @@ def test_repeat_call_with_other_classes_raises():
     add_problem_handlers(app, validation=NamedInvalid)
     with pytest.raises(ValueError, match="NamedInvalid"):
         add_problem_handlers(app, validation=HintedInvalid)
+
+
+def test_two_apps_keep_their_own_classes():
+    named = TestClient(build_app(docs=True))
+    traced = TestClient(build_app(docs=True, validation=TracedInvalid, internal=TracedBroken))
+    assert named.get("/items/abc").json()["type"] == "/problems/named-invalid"
+    assert traced.get("/items/abc").json()["type"] == "/problems/traced-invalid"
+    assert "x-trace" not in named.get("/items/abc").headers
+    named_doc = named.get("/openapi.json").json()["components"]["schemas"]
+    traced_doc = traced.get("/openapi.json").json()["components"]["schemas"]
+    assert "NamedInvalid" in named_doc and "TracedInvalid" not in named_doc
+    assert "TracedInvalid" in traced_doc and "NamedInvalid" not in traced_doc
+    assert traced.get("/problems/named-invalid").status_code == 404
