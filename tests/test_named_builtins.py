@@ -225,3 +225,10 @@ def test_defaults_answer_with_the_builtin_classes():
 def test_rejects_a_class_the_handler_cannot_answer_with(kwargs, message):
     with pytest.raises(TypeError, match=message):
         add_problem_handlers(FastAPI(), **kwargs)
+
+
+def test_repeat_call_with_other_classes_raises():
+    app = FastAPI()
+    add_problem_handlers(app, validation=NamedInvalid)
+    with pytest.raises(ValueError, match="NamedInvalid"):
+        add_problem_handlers(app, validation=HintedInvalid)

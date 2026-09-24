@@ -26,8 +26,8 @@ def add_problem_handlers(
 ) -> None:
     """Register the four problem handlers and the OpenAPI component registration.
 
-    Does **not** mount the docs router (mount it explicitly). Idempotent: a second
-    call warns and returns.
+    Does **not** mount the docs router (mount it explicitly). A second call with
+    the same ``validation`` and ``internal`` warns and returns.
 
     Parameters
     ----------
@@ -51,15 +51,24 @@ def add_problem_handlers(
         If ``validation`` or ``internal`` subclasses a different default, is
         abstract, changes the default's ``status`` or declares extension fields
         of its own.
+    ValueError
+        If the app is wired already with a different ``validation`` or ``internal``.
     """
+    builtins = BuiltinProblems(validation=validation, internal=internal)
     if getattr(app.state, _INSTALLED_FLAG, False):
+        wired = BuiltinProblems.of(app)
+        if wired != builtins:
+            raise ValueError(
+                f"add_problem_handlers wired this app with validation={wired.validation.__name__}, "
+                f"internal={wired.internal.__name__}; this call passes "
+                f"validation={validation.__name__}, internal={internal.__name__}."
+            )
         warnings.warn(
             "add_problem_handlers was called more than once on this app; ignoring the repeat.",
             stacklevel=2,
         )
         return
 
-    builtins = BuiltinProblems(validation=validation, internal=internal)
     handlers = make_handlers(
         strip_debug=strip_debug, instance_from_request=instance_from_request, builtins=builtins
     )
