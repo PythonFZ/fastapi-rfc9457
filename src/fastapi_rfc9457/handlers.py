@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import warnings
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -45,7 +46,7 @@ class BuiltinProblems:
     ------
     TypeError
         If a class subclasses a different default, is abstract, changes the
-        default's ``status`` or declares extension fields of its own.
+        default's ``status`` or adds an extension field without a default.
     """
 
     validation: type[ValidationProblem] = ValidationProblem
@@ -64,11 +65,19 @@ class BuiltinProblems:
                     f"{name}={cls.__name__} answers with status {default.status}; "
                     f"it sets {cls.status}."
                 )
-            added = extension_fields(cls).keys() - extension_fields(default).keys()
-            if added:
+            inherited = extension_fields(default).keys()
+            required = [
+                field.name
+                for field in dataclasses.fields(cls)
+                if field.name not in inherited
+                and field.default is dataclasses.MISSING
+                and field.default_factory is dataclasses.MISSING
+            ]
+            if required:
                 raise TypeError(
-                    f"{name}={cls.__name__} carries the extension fields of "
-                    f"{default.__name__}; it adds {sorted(added)}."
+                    f"{name}={cls.__name__} requires {sorted(required)}; the handler "
+                    "fills only the fields of "
+                    f"{default.__name__}, so give them defaults."
                 )
 
     def store(self, app: FastAPI) -> None:
@@ -177,17 +186,11 @@ def make_handlers(
             )
             params.append(param)
         n = len(params)
-        wire = ProblemDetail.model_validate(
-            {
-                "type": resolve_type_uri(request.app, validation),
-                "title": validation.title,
-                "status": validation.status,
-                "detail": f"Request validation failed ({n} error{'' if n == 1 else 's'}).",
-                "instance": _instance(request),
-                "errors": [p.model_dump(exclude_none=True) for p in params],
-            }
+        problem = validation(
+            errors=params,
+            detail=f"Request validation failed ({n} error{'' if n == 1 else 's'}).",
         )
-        return _respond(wire)
+        return await problem_handler(request, problem)
 
     async def http_handler(request: Request, exc: StarletteHTTPException) -> Response:
         try:
@@ -204,14 +207,8 @@ def make_handlers(
         return _respond(wire, exc.headers)
 
     async def unhandled_handler(request: Request, exc: Exception) -> Response:
-        wire = ProblemDetail(
-            type=resolve_type_uri(request.app, internal),
-            title=internal.title,
-            status=internal.status,
-            detail=None if strip_debug else f"{type(exc).__name__}: {exc}",
-            instance=_instance(request),
-        )
-        return _respond(wire)
+        problem = internal(detail=None if strip_debug else f"{type(exc).__name__}: {exc}")
+        return await problem_handler(request, problem)
 
     return cast(
         dict[type, Handler],

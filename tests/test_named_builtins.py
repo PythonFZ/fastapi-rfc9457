@@ -1,3 +1,6 @@
+from collections.abc import Mapping
+from typing import ClassVar
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -39,6 +42,24 @@ class Teapot(InternalServerError):
     status = 418
 
 
+class TracedInvalid(ValidationProblem):
+    headers: ClassVar[Mapping[str, str]] = {"X-Trace": "The trace id."}
+
+    def response_headers(self) -> Mapping[str, str]:
+        return {"X-Trace": "t-422"}
+
+
+class TracedBroken(InternalServerError):
+    headers: ClassVar[Mapping[str, str]] = {"X-Trace": "The trace id."}
+
+    def response_headers(self) -> Mapping[str, str]:
+        return {"X-Trace": "t-500"}
+
+
+class HintedInvalid(ValidationProblem):
+    hint: str = "See the docs."
+
+
 class Unrelated(Problem):
     """A problem outside the validation hierarchy."""
 
@@ -46,9 +67,14 @@ class Unrelated(Problem):
     status = 422
 
 
-def build_app(*, docs: bool = False) -> FastAPI:
+def build_app(
+    *,
+    docs: bool = False,
+    validation: type[ValidationProblem] = NamedInvalid,
+    internal: type[InternalServerError] = NamedBroken,
+) -> FastAPI:
     app = FastAPI()
-    add_problem_handlers(app, validation=NamedInvalid, internal=NamedBroken)
+    add_problem_handlers(app, validation=validation, internal=internal)
     if docs:
         app.include_router(get_problem_docs_router(), prefix="/problems")
 
@@ -79,6 +105,25 @@ def test_500_carries_the_named_internal_class():
     assert body["type"] == "named-broken"
     assert body["title"] == "Broken"
     assert body["status"] == 500
+
+
+def test_422_sends_the_named_class_headers():
+    r = TestClient(build_app(validation=TracedInvalid)).get("/items/abc")
+    assert r.status_code == 422
+    assert r.headers["x-trace"] == "t-422"
+
+
+def test_500_sends_the_named_class_headers():
+    client = TestClient(build_app(internal=TracedBroken), raise_server_exceptions=False)
+    r = client.get("/boom")
+    assert r.status_code == 500
+    assert r.headers["x-trace"] == "t-500"
+
+
+def test_422_carries_a_defaulted_extension_field():
+    body = TestClient(build_app(validation=HintedInvalid)).get("/items/abc").json()
+    assert body["hint"] == "See the docs."
+    assert body["errors"][0]["loc"] == ["path", "item_id"]
 
 
 def test_client_raises_the_named_validation_class():
@@ -135,7 +180,7 @@ def test_defaults_answer_with_the_builtin_classes():
         ({"validation": Unrelated}, "subclass of ValidationProblem"),
         ({"internal": NamedInvalid}, "subclass of InternalServerError"),
         ({"validation": AbstractInvalid}, "abstract"),
-        ({"validation": CodedInvalid}, "extension fields"),
+        ({"validation": CodedInvalid}, "code"),
         ({"internal": Teapot}, "status 500"),
     ],
 )
