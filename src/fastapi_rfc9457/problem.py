@@ -67,23 +67,7 @@ def extension_fields(cls: type) -> dict[str, type]:
 
 
 def _describe(head: str, detail: str | None, extensions: Mapping[str, Any]) -> str:
-    """Render a problem as one log line: head, then detail, then extension members.
-
-    Parameters
-    ----------
-    head : str
-        The ``"<status> <title>"`` lead.
-    detail : str | None
-        The occurrence-specific explanation.
-    extensions : Mapping[str, Any]
-        Extension member name -> value, rendered as ``name=repr(value)`` in order.
-
-    Returns
-    -------
-    str
-        ``"404 No such room — the room left: room='kitchen'"``; the ``" — "``
-        tail appears when the problem has a detail or extension members.
-    """
+    """Render ``"404 No such room — the room left: room='kitchen'"``."""
     fields = ", ".join(f"{name}={value!r}" for name, value in extensions.items())
     tail = ": ".join(part for part in (detail, fields) if part)
     return f"{head} — {tail}" if tail else head
