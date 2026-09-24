@@ -3,14 +3,19 @@
 from collections.abc import Mapping
 from typing import assert_type
 
+from fastapi import FastAPI
+
 from fastapi_rfc9457 import (
+    InternalServerError,
     MethodNotAllowed,
     NotAuthenticated,
     Problem,
     RetryAfter,
     ServiceUnavailable,
     TooManyRequests,
+    ValidationProblem,
 )
+from fastapi_rfc9457.server import add_problem_handlers
 
 
 class OutOfCredit(Problem):
@@ -63,3 +68,27 @@ class AuditedForbidden(Auditable):
 
 
 assert_type(AuditedForbidden(audit_id="a1").audit_id, str)
+
+
+class AppInvalid(ValidationProblem): ...
+
+
+class AppBroken(InternalServerError): ...
+
+
+add_problem_handlers(FastAPI(), validation=AppInvalid, internal=AppBroken)
+
+
+class AppError(Exception): ...
+
+
+class AppProblem(Problem, AppError, abstract=True): ...
+
+
+class Invalid(ValidationProblem, AppProblem): ...
+
+
+class Broken(InternalServerError, AppProblem): ...
+
+
+add_problem_handlers(FastAPI(), validation=Invalid, internal=Broken)

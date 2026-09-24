@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
+from fastapi_rfc9457.builtins import BuiltinProblems
 from fastapi_rfc9457.handlers import make_handlers
 from fastapi_rfc9457.models import PROBLEM_MEDIA_TYPE, ProblemDetail
 from fastapi_rfc9457.problem import Problem
@@ -26,7 +27,9 @@ class Item(BaseModel):
 def build_app(*, strip_debug=False, instance_from_request=True) -> FastAPI:
     app = FastAPI()
     for exc_type, handler in make_handlers(
-        strip_debug=strip_debug, instance_from_request=instance_from_request
+        strip_debug=strip_debug,
+        instance_from_request=instance_from_request,
+        builtins=BuiltinProblems(),
     ).items():
         app.add_exception_handler(exc_type, handler)
 

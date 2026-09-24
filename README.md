@@ -94,6 +94,20 @@ class Throttled(RetryAfter):      # built-in abstract base: retry_after + Retry-
     title, status = "Throttled", 429
 ```
 
+The 422 and 500 handlers answer with `ValidationProblem` and `InternalServerError`.
+Pass subclasses to put them under your own error base. The response bodies, the OpenAPI 422 and 500 entries (schema, description, headers), the docs pages and the client's typed exceptions use them, including on routes that list `problems(ValidationProblem)` or `problems(InternalServerError)`:
+
+```python
+class Invalid(ValidationProblem, AppError): ...
+class Broken(InternalServerError, AppError): ...
+
+add_problem_handlers(app, validation=Invalid, internal=Broken)
+```
+
+The handlers send the headers these classes declare, and extension fields with defaults appear in the body.
+`add_problem_handlers` raises `TypeError` for a class outside its default's hierarchy, an abstract one, one that sets another `status`, or one that adds an extension field without a default.
+A second call on the same app with other options raises `ValueError`; an identical second call warns.
+
 ## Typed exceptions on the client
 
 Client-side, the package can parse `application/problem+json` back into typed problems the server raised.
