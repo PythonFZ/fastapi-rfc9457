@@ -99,7 +99,7 @@ class Throttled(RetryAfter):      # built-in abstract base: retry_after + Retry-
 Client-side, the package can parse `application/problem+json` back into typed problems the server raised.
 
 ```python
-import httpx
+import httpx2
 from fastapi_rfc9457 import Problem, httpx_raise_hook
 
 
@@ -108,7 +108,7 @@ class OutOfCredit(Problem):      # the type the server declares, shared or re-st
     status = 403
     balance: int
 
-with httpx.Client(
+with httpx2.Client(
     base_url="http://localhost:8000",
     event_hooks={
         "response": [httpx_raise_hook()]
