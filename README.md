@@ -83,8 +83,33 @@ class Moved(Problem):
 ```
 
 Sending a header missing from `headers` emits `UndeclaredHeaderWarning`.
-Subclass `RetryAfter` to give a custom type the same `retry_after` field and header.
 Each class declares only its own `headers`, `response_headers()` and `header_examples()`; the library merges them with those of its bases.
+
+## Shared bases
+
+A problem type needs a `title` and a `status`; a class missing either raises `TypeError` when it is defined.
+Declare a base with `abstract=True` to share fields, headers and methods across types:
+
+```python
+class Throttled(RetryAfter):      # RetryAfter is an abstract built-in: retry_after + Retry-After
+    title = "Throttled"
+    status = 429
+    headers: ClassVar[Mapping[str, str]] = {"X-RateLimit-Limit": "Requests allowed per window."}
+
+    def response_headers(self) -> Mapping[str, str]:
+        return {"X-RateLimit-Limit": "100"}   # sent alongside Retry-After
+
+
+class Audited(Problem, abstract=True):
+    audit_id: str                 # every subclass carries it
+
+
+class AuditedForbidden(Audited):
+    title = "Forbidden"
+    status = 403
+```
+
+Abstract types are left out of the client `type` lookup, and constructing one or passing it to `problems()` raises `TypeError`.
 
 ## Typed exceptions on the client
 
