@@ -122,3 +122,22 @@ class _Gone(Problem):
     title = "Gone"
     status = 410
     headers: ClassVar[Mapping[str, str]] = {"Sunset": "When the resource went away."}
+
+
+def test_openapi_shows_the_challenge_as_header_example():
+    header = _responses(NotAuthenticated)["401"]["headers"]["WWW-Authenticate"]
+    assert header["example"] == "Bearer"
+
+
+def test_openapi_shows_a_subclass_challenge_as_header_example():
+    header = _responses(BasicAuthRequired)["401"]["headers"]["WWW-Authenticate"]
+    assert header["example"] == 'Basic realm="api"'
+
+
+def test_openapi_lists_each_challenge_of_a_shared_status():
+    header = _responses(NotAuthenticated, BasicAuthRequired)["401"]["headers"]["WWW-Authenticate"]
+    assert "example" not in header
+    assert header["examples"] == {
+        "NotAuthenticated": {"value": "Bearer"},
+        "BasicAuthRequired": {"value": 'Basic realm="api"'},
+    }

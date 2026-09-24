@@ -23,7 +23,8 @@ class NotAuthenticated(Problem):
     title = "Unauthorized"
     status = 401
     headers: ClassVar[Mapping[str, str]] = {
-        "WWW-Authenticate": "The authentication scheme the client must use (RFC 9110 §11.6.1)."
+        "WWW-Authenticate": "The challenge(s) the client must answer to authenticate "
+        "(RFC 9110 §11.6.1)."
     }
     #: The ``WWW-Authenticate`` challenge, e.g. ``'Basic realm="api"'`` in a subclass.
     challenge: ClassVar[str] = "Bearer"
@@ -31,6 +32,11 @@ class NotAuthenticated(Problem):
     def response_headers(self) -> Mapping[str, str]:
         """Send the class's ``challenge`` as ``WWW-Authenticate``."""
         return {"WWW-Authenticate": self.challenge}
+
+    @classmethod
+    def header_examples(cls) -> Mapping[str, str]:
+        """Document the class's ``challenge`` as the ``WWW-Authenticate`` example."""
+        return {"WWW-Authenticate": cls.challenge}
 
 
 class Forbidden(Problem):

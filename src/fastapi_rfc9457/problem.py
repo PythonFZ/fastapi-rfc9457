@@ -142,6 +142,17 @@ class Problem(Exception, metaclass=_ProblemMeta):
         """
         return {}
 
+    @classmethod
+    def header_examples(cls) -> Mapping[str, str]:
+        """Return example header values for the OpenAPI docs.
+
+        Returns
+        -------
+        Mapping[str, str]
+            Header name -> example value, a subset of the names declared in ``headers``.
+        """
+        return {}
+
     def __str__(self) -> str:
         """Human-readable representation for logs and traceback tails."""
 
