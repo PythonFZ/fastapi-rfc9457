@@ -8,8 +8,7 @@ from fastapi_rfc9457.docs import get_problem_docs_router
 from fastapi_rfc9457.integration import add_problem_handlers
 
 
-class AppError(Exception):
-    """An application's own error base."""
+class AppError(Exception): ...
 
 
 class NamedInvalid(ValidationProblem, AppError):
@@ -26,6 +25,18 @@ class NamedBroken(InternalServerError, AppError):
 
 class AbstractInvalid(ValidationProblem, abstract=True):
     """An abstract validation base."""
+
+
+class CodedInvalid(ValidationProblem):
+    """A validation class declaring a field the 422 handler never writes."""
+
+    code: str
+
+
+class Teapot(InternalServerError):
+    """An internal class answering with another status."""
+
+    status = 418
 
 
 class Unrelated(Problem):
@@ -124,8 +135,10 @@ def test_defaults_answer_with_the_builtin_classes():
         ({"validation": Unrelated}, "subclass of ValidationProblem"),
         ({"internal": NamedInvalid}, "subclass of InternalServerError"),
         ({"validation": AbstractInvalid}, "abstract"),
+        ({"validation": CodedInvalid}, "extension fields"),
+        ({"internal": Teapot}, "status 500"),
     ],
 )
-def test_rejects_a_class_outside_the_default_or_abstract(kwargs, message):
+def test_rejects_a_class_the_handler_cannot_answer_with(kwargs, message):
     with pytest.raises(TypeError, match=message):
         add_problem_handlers(FastAPI(), **kwargs)

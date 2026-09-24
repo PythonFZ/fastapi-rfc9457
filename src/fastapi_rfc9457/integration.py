@@ -48,8 +48,9 @@ def add_problem_handlers(
     Raises
     ------
     TypeError
-        If ``validation`` or ``internal`` subclasses a different default, or is
-        abstract.
+        If ``validation`` or ``internal`` subclasses a different default, is
+        abstract, changes the default's ``status`` or declares extension fields
+        of its own.
     """
     if getattr(app.state, _INSTALLED_FLAG, False):
         warnings.warn(

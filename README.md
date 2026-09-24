@@ -104,7 +104,7 @@ class Broken(InternalServerError, AppError): ...
 add_problem_handlers(app, validation=Invalid, internal=Broken)
 ```
 
-`add_problem_handlers` raises `TypeError` for a class outside the default's hierarchy or an abstract one.
+`add_problem_handlers` raises `TypeError` for a class outside the default's hierarchy, an abstract one, or one that changes the default's `status` or extension fields.
 
 ## Typed exceptions on the client
 

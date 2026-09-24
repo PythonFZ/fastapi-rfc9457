@@ -6,9 +6,9 @@ import warnings
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Any, cast
+from typing import cast
 
-from fastapi import Request
+from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -44,7 +44,8 @@ class BuiltinProblems:
     Raises
     ------
     TypeError
-        If a class subclasses a different default, or is abstract.
+        If a class subclasses a different default, is abstract, changes the
+        default's ``status`` or declares extension fields of its own.
     """
 
     validation: type[ValidationProblem] = ValidationProblem
@@ -58,32 +59,26 @@ class BuiltinProblems:
             if not (isinstance(cls, type) and issubclass(cls, default)):
                 raise TypeError(f"{name}= takes a subclass of {default.__name__}; got {cls!r}.")
             require_concrete(cls)
+            if cls.status != default.status:
+                raise TypeError(
+                    f"{name}={cls.__name__} answers with status {default.status}; "
+                    f"it sets {cls.status}."
+                )
+            added = extension_fields(cls).keys() - extension_fields(default).keys()
+            if added:
+                raise TypeError(
+                    f"{name}={cls.__name__} carries the extension fields of "
+                    f"{default.__name__}; it adds {sorted(added)}."
+                )
 
-    def store(self, app: Any) -> None:
-        """Record these classes on ``app.state`` for the OpenAPI and docs builders.
-
-        Parameters
-        ----------
-        app : Any
-            The FastAPI application.
-        """
+    def store(self, app: FastAPI) -> None:
+        """Record these classes on ``app.state`` for the OpenAPI and docs builders."""
         setattr(app.state, _BUILTINS_STATE, self)
 
     @classmethod
-    def of(cls, app: Any) -> BuiltinProblems:
-        """Return the classes ``app`` answers with; the defaults for an unwired app.
-
-        Parameters
-        ----------
-        app : Any
-            The FastAPI application.
-
-        Returns
-        -------
-        BuiltinProblems
-            The classes stored by :func:`add_problem_handlers`, or the defaults.
-        """
-        return getattr(app.state, _BUILTINS_STATE, None) or cls()
+    def of(cls, app: FastAPI) -> BuiltinProblems:
+        """Return the classes stored on ``app``; the defaults for an unwired app."""
+        return getattr(app.state, _BUILTINS_STATE, cls())
 
 
 def build_wire(problem: Problem, *, instance: str | None, type_uri: str) -> ProblemDetail:
@@ -140,7 +135,7 @@ def make_handlers(
     *,
     strip_debug: bool,
     instance_from_request: bool,
-    builtins: BuiltinProblems | None = None,
+    builtins: BuiltinProblems = BuiltinProblems(),
 ) -> dict[type, Handler]:
     """Build the exception-type -> handler mapping for ``add_exception_handler``.
 
@@ -150,17 +145,15 @@ def make_handlers(
         Redact ``detail`` on 500s and the offending ``input`` on 422s.
     instance_from_request : bool
         Auto-fill ``instance`` from the request path when unset.
-    builtins : BuiltinProblems | None, optional
-        The classes the 422 and 500 handlers answer with, by default
-        ``ValidationProblem`` and ``InternalServerError``.
+    builtins : BuiltinProblems, optional
+        The classes the 422 and 500 handlers answer with.
 
     Returns
     -------
     dict[type, Handler]
         Mapping suitable for iterating into ``app.add_exception_handler``.
     """
-    answering = builtins or BuiltinProblems()
-    validation, internal = answering.validation, answering.internal
+    validation, internal = builtins.validation, builtins.internal
 
     def _instance(request: Request) -> str | None:
         return request.url.path if instance_from_request else None
