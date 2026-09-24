@@ -19,7 +19,7 @@ from .builtins import (
 )
 from .client import httpx_raise_hook, parse_problem, raise_for_problem
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
-from .problem import Problem, ProblemError
+from .problem import Problem, ProblemError, UndeclaredHeaderWarning
 
 try:
     __version__ = version("fastapi-rfc9457")
@@ -40,6 +40,7 @@ __all__ = [
     "ProblemDetail",
     "ProblemError",
     "TooManyRequests",
+    "UndeclaredHeaderWarning",
     "UnprocessableContent",
     "ValidationProblem",
     "__version__",

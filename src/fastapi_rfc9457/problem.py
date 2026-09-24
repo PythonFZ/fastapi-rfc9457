@@ -185,6 +185,14 @@ def iter_problem_types() -> Iterator[type[Problem]]:
         stack.extend(cls.__subclasses__())
 
 
+class UndeclaredHeaderWarning(UserWarning):
+    """A problem sent a response header missing from its ``headers`` declaration.
+
+    The header is still sent; the OpenAPI schema lacks it. Promote it to an
+    error in tests with ``filterwarnings = ["error::fastapi_rfc9457.UndeclaredHeaderWarning"]``.
+    """
+
+
 class ProblemError(Exception):
     """Client-side fallback for a problem response whose ``type`` isn't registered.
 
