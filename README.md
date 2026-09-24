@@ -75,6 +75,21 @@ class BasicAuthRequired(NotAuthenticated):
     challenge = 'Basic realm="api"'      # WWW-Authenticate: Basic realm="api"
 ```
 
+A custom problem type declares its own headers:
+
+```python
+class Moved(Problem):
+    title = "Moved"
+    status = 410
+    location: str
+    headers: ClassVar[Mapping[str, str]] = {"Location": "The new URL of the resource."}
+
+    def response_headers(self) -> Mapping[str, str]:
+        return {"Location": self.location}
+```
+
+Sending a header missing from `headers` emits `UndeclaredHeaderWarning`.
+
 ## Typed exceptions on the client
 
 Client-side, the package can parse

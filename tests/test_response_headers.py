@@ -29,7 +29,7 @@ class Moved(Problem):
     title = "Moved"
     status = 410
     location: str
-    headers: ClassVar[Mapping[str, str]] = {"Location": "Where the resource lives now."}
+    headers: ClassVar[Mapping[str, str]] = {"Location": "The new URL of the resource."}
 
     def response_headers(self) -> Mapping[str, str]:
         return {"Location": self.location}
