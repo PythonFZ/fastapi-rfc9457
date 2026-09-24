@@ -66,6 +66,29 @@ def extension_fields(cls: type) -> dict[str, type]:
     }
 
 
+def _describe(head: str, detail: str | None, extensions: Mapping[str, Any]) -> str:
+    """Render a problem as one log line: head, then detail, then extension members.
+
+    Parameters
+    ----------
+    head : str
+        The ``"<status> <title>"`` lead.
+    detail : str | None
+        The occurrence-specific explanation.
+    extensions : Mapping[str, Any]
+        Extension member name -> value, rendered as ``name=repr(value)`` in order.
+
+    Returns
+    -------
+    str
+        ``"404 No such room — the room left: room='kitchen'"``; the ``" — "``
+        tail appears when the problem has a detail or extension members.
+    """
+    fields = ", ".join(f"{name}={value!r}" for name, value in extensions.items())
+    tail = ": ".join(part for part in (detail, fields) if part)
+    return f"{head} — {tail}" if tail else head
+
+
 @dataclass_transform(kw_only_default=True)
 class _ProblemMeta(type):
     """Metaclass that makes ``Problem`` and every subclass a kw-only dataclass.
@@ -198,8 +221,8 @@ class Problem(Exception, metaclass=_ProblemMeta):
         """Human-readable representation for logs and traceback tails."""
 
         head = f"{getattr(self, 'status', '')} {getattr(self, 'title', '')}".strip()
-        head = head or type(self).__name__
-        return f"{head} — {self.detail}" if self.detail else head
+        extensions = {name: getattr(self, name) for name in extension_fields(type(self))}
+        return _describe(head or type(self).__name__, self.detail, extensions)
 
 
 def require_concrete(cls: type[Problem]) -> None:
@@ -297,4 +320,10 @@ class ProblemError(Exception):
 
     def __init__(self, problem: ProblemDetail) -> None:
         self.problem = problem
-        super().__init__(f"{problem.status} {problem.title}")
+        super().__init__(
+            _describe(
+                f"{problem.status} {problem.title}",
+                problem.detail,
+                problem.model_extra or {},
+            )
+        )
