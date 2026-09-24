@@ -60,20 +60,20 @@ A problem type declares the headers it sends in `headers` (name → OpenAPI desc
 The built-ins send the headers RFC 9110 asks for:
 
 ```python
-raise NotAuthenticated()                 # WWW-Authenticate: Bearer
-raise TooManyRequests(retry_after=30)    # Retry-After: 30
-raise MethodNotAllowed(allow=["GET"])    # Allow: GET
+raise NotAuthenticated()                   # WWW-Authenticate: Bearer
+raise TooManyRequests(retry_after=30)      # Retry-After: 30
+raise ServiceUnavailable(retry_after=120)  # Retry-After: 120
+raise MethodNotAllowed(allow=["GET"])      # Allow: GET
 
 class BasicAuthRequired(NotAuthenticated):
-    challenge = 'Basic realm="api"'      # WWW-Authenticate: Basic realm="api"
+    challenge = 'Basic realm="api"'        # WWW-Authenticate: Basic realm="api"
 ```
 
 A custom problem type declares its own headers:
 
 ```python
 class Moved(Problem):
-    title = "Moved"
-    status = 410
+    title, status = "Moved", 410
     location: str
     headers: ClassVar[Mapping[str, str]] = {"Location": "The new URL of the resource."}
 
@@ -81,7 +81,18 @@ class Moved(Problem):
         return {"Location": self.location}
 ```
 
-Sending a header missing from `headers` emits `UndeclaredHeaderWarning`.
+Each class declares only its own `headers`, `response_headers()` and `header_examples()`; the library merges them with those of its bases, and sending an undeclared header emits `UndeclaredHeaderWarning`.
+
+## Shared bases
+
+A class missing `title` or `status` raises `TypeError` when defined; mark shared bases `abstract=True`:
+
+```python
+class Audited(Problem, abstract=True):
+    audit_id: str                 # every subclass carries it
+class Throttled(RetryAfter):      # built-in abstract base: retry_after + Retry-After
+    title, status = "Throttled", 429
+```
 
 ## Typed exceptions on the client
 
@@ -108,8 +119,7 @@ with httpx.Client(
         print(exc.balance)       # extension members round-trip back as typed attributes
 ```
 
-Prefer to parse explicitly?
-`parse_problem(response)` returns the typed `Problem` (or a generic `ProblemDetail` for an unknown `type`), and `raise_for_problem(response)` raises it (`ProblemError` for an unknown `type`).
+Prefer to parse explicitly? `parse_problem(response)` returns the typed `Problem` (or a generic `ProblemDetail` for an unknown `type`), and `raise_for_problem(response)` raises it (`ProblemError` for an unknown `type`).
 
 ## Comparison with native FastAPI
 

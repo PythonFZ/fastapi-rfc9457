@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, ClassVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, NonNegativeInt
 
 from .problem import Problem
 
@@ -82,20 +82,25 @@ class UnprocessableContent(Problem):
     status = 422
 
 
-class TooManyRequests(Problem):
-    """You have sent too many requests in a given amount of time."""
+class RetryAfter(Problem, abstract=True):
+    """Base for problems that tell the client when to retry (RFC 9110 §10.2.3)."""
 
-    title = "Too Many Requests"
-    status = 429
     headers: ClassVar[Mapping[str, str]] = {
         "Retry-After": "Seconds to wait before retrying (RFC 9110 §10.2.3)."
     }
     #: Seconds the client waits before retrying; sent as ``Retry-After`` when set.
-    retry_after: int | None = None
+    retry_after: NonNegativeInt | None = None
 
     def response_headers(self) -> Mapping[str, str]:
         """Send ``retry_after`` as ``Retry-After`` when set."""
         return {} if self.retry_after is None else {"Retry-After": str(self.retry_after)}
+
+
+class TooManyRequests(RetryAfter):
+    """You have sent too many requests in a given amount of time."""
+
+    title = "Too Many Requests"
+    status = 429
 
 
 class InternalServerError(Problem):
@@ -103,6 +108,13 @@ class InternalServerError(Problem):
 
     title = "Internal Server Error"
     status = 500
+
+
+class ServiceUnavailable(RetryAfter):
+    """The server is temporarily unable to handle the request."""
+
+    title = "Service Unavailable"
+    status = 503
 
 
 class InvalidParam(BaseModel):

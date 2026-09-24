@@ -102,6 +102,7 @@ name = "fastapi-rfc9457"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
+    { name = "typing-extensions" },
 ]
 
 [package.optional-dependencies]
@@ -125,6 +126,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.137.2" },
     { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "typing-extensions", specifier = ">=4.15.0" },
 ]
 provides-extras = ["server"]
 

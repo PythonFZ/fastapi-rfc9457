@@ -10,7 +10,10 @@ requires-python = ">=3.11"
 dynamic = ["version"]
 license = "MIT"
 authors = [{ name = "Fabian Zills" }]
-dependencies = ["pydantic>=2.13.4"]
+dependencies = [
+    "pydantic>=2.13.4",
+    "typing-extensions>=4.15.0",
+]
 
 [project.urls]
 Repository = "https://github.com/PythonFZ/fastapi-rfc9457"

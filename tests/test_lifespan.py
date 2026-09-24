@@ -4,41 +4,43 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from fastapi_rfc9457.integration import add_problem_handlers, problem_details_lifespan
+from fastapi_rfc9457.integration import problem_details_lifespan
 from fastapi_rfc9457.problem import Problem
 
 
-def test_lifespan_runs_and_composes_with_user_lifespan():
+def test_lifespan_is_deprecated_and_still_composes():
     events: list[str] = []
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        events.append("user-start")
-        async with problem_details_lifespan(app):
+        with pytest.warns(DeprecationWarning, match="validated when defined"):
+            cm = problem_details_lifespan(app)
+        async with cm:
             events.append("ours-start")
             yield
-        events.append("user-end")
 
-    app = FastAPI(lifespan=lifespan)
-    add_problem_handlers(app)
-
-    with TestClient(app):
+    with TestClient(FastAPI(lifespan=lifespan)):
         pass
 
-    assert events == ["user-start", "ours-start", "user-end"]
+    assert events == ["ours-start"]
 
 
-def test_lifespan_validates_registry_fails_fast_on_missing_status():
-    # A problem type with no `status` ClassVar set.
-    class Broken(Problem):
-        title = "Broken"
-        # no status
+def test_missing_status_raises_when_the_class_is_defined():
+    with pytest.raises(TypeError, match="Broken is missing a status"):
 
-    @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        async with problem_details_lifespan(app):
-            yield
+        class Broken(Problem):
+            title = "Broken"
 
-    app = FastAPI(lifespan=lifespan)
-    with pytest.raises(RuntimeError, match="status"), TestClient(app):
+
+def test_missing_title_raises_when_the_class_is_defined():
+    with pytest.raises(TypeError, match="Broken is missing a title"):
+
+        class Broken(Problem):
+            status = 500
+
+
+def test_abstract_base_needs_no_title_or_status():
+    class Base(Problem, abstract=True):
         pass
+
+    assert Base._abstract

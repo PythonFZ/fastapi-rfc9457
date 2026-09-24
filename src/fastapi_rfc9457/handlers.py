@@ -15,7 +15,7 @@ from starlette.responses import Response
 
 from .builtins import InternalServerError, InvalidParam, ValidationProblem
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
-from .problem import Problem, UndeclaredHeaderWarning, extension_fields
+from .problem import Problem, UndeclaredHeaderWarning, extension_fields, sent_headers
 from .uris import resolve_type_uri
 
 Handler = Callable[[Request, Exception], Awaitable[Response]]
@@ -64,7 +64,7 @@ def _warn_undeclared_headers(cls: type[Problem], headers: Mapping[str, str]) -> 
     for name in headers:
         if name.lower() not in declared:
             warnings.warn(
-                f"{cls.__name__}.response_headers() returned {name!r}, which is missing from "
+                f"{cls.__name__} sends {name!r}, which is missing from "
                 f"{cls.__name__}.headers; declare it there to document it in OpenAPI.",
                 UndeclaredHeaderWarning,
                 stacklevel=2,
@@ -93,7 +93,7 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
     async def problem_handler(request: Request, exc: Problem) -> Response:
         type_uri = resolve_type_uri(request.app, type(exc))
         wire = build_wire(exc, instance=_instance(request), type_uri=type_uri)
-        headers = exc.response_headers()
+        headers = sent_headers(exc)
         _warn_undeclared_headers(type(exc), headers)
         return _respond(wire, headers)
 

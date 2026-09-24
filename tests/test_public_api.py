@@ -23,6 +23,8 @@ def test_client_symbols_are_exported():
         "Conflict",
         "UnprocessableContent",
         "TooManyRequests",
+        "ServiceUnavailable",
+        "RetryAfter",
         "InternalServerError",
         "ValidationProblem",
         "InvalidParam",
