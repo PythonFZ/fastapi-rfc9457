@@ -10,6 +10,7 @@ from fastapi_rfc9457 import (
     NotAuthenticated,
     NotFound,
     Problem,
+    ServiceUnavailable,
     TooManyRequests,
     UndeclaredHeaderWarning,
 )
@@ -176,3 +177,19 @@ def test_declared_header_matches_case_insensitively(recwarn):
 
     _client(LowerMoved(location="/new")).get("/0")
     assert not [w for w in recwarn if issubclass(w.category, UndeclaredHeaderWarning)]
+
+
+def test_service_unavailable_sends_retry_after_when_set():
+    resp = _client(ServiceUnavailable(retry_after=120)).get("/0")
+    assert resp.status_code == 503
+    assert resp.headers["retry-after"] == "120"
+    assert resp.json()["retry_after"] == 120
+
+
+def test_service_unavailable_omits_retry_after_by_default():
+    resp = _client(ServiceUnavailable()).get("/0")
+    assert "retry-after" not in resp.headers
+
+
+def test_openapi_documents_retry_after_on_503():
+    assert set(_responses(ServiceUnavailable)["503"]["headers"]) == {"Retry-After"}

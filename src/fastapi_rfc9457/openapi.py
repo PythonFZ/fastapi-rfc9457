@@ -113,6 +113,10 @@ def problems(*types_: type[Problem]) -> dict[int | str, dict[str, Any]]:
     """
     grouped: dict[int, list[type[Problem]]] = {}
     for problem_type in types_:
+        if problem_type._abstract:
+            raise TypeError(
+                f"{problem_type.__name__} is abstract; document its concrete subclasses."
+            )
         grouped.setdefault(problem_type.status, []).append(problem_type)
 
     responses: dict[int | str, dict[str, Any]] = {}

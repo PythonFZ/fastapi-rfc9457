@@ -60,12 +60,13 @@ A problem type declares the headers it sends in `headers` (name → OpenAPI desc
 The built-ins send the headers RFC 9110 asks for:
 
 ```python
-raise NotAuthenticated()                 # WWW-Authenticate: Bearer
-raise TooManyRequests(retry_after=30)    # Retry-After: 30
-raise MethodNotAllowed(allow=["GET"])    # Allow: GET
+raise NotAuthenticated()                   # WWW-Authenticate: Bearer
+raise TooManyRequests(retry_after=30)      # Retry-After: 30
+raise ServiceUnavailable(retry_after=120)  # Retry-After: 120
+raise MethodNotAllowed(allow=["GET"])      # Allow: GET
 
 class BasicAuthRequired(NotAuthenticated):
-    challenge = 'Basic realm="api"'      # WWW-Authenticate: Basic realm="api"
+    challenge = 'Basic realm="api"'        # WWW-Authenticate: Basic realm="api"
 ```
 
 A custom problem type declares its own headers:
@@ -82,6 +83,7 @@ class Moved(Problem):
 ```
 
 Sending a header missing from `headers` emits `UndeclaredHeaderWarning`.
+Subclass `RetryAfter` to give a custom type the same `retry_after` field and header.
 
 ## Typed exceptions on the client
 

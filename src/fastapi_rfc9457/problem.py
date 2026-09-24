@@ -109,6 +109,12 @@ class Problem(Exception, metaclass=_ProblemMeta):
     stays safe. Unknown constructor keywords are rejected (``extra="forbid"``):
     passing a ``ClassVar`` constant like ``status=404`` raises rather than being
     ignored.
+
+    Pass ``abstract=True`` to define a base that carries shared fields, headers
+    or methods for its subclasses: ``class RetryAfter(Problem, abstract=True)``.
+    An abstract type omits ``title``/``status``, is skipped by the startup check
+    and the client ``type`` lookup, and raises ``TypeError`` when constructed.
+    Its subclasses are concrete.
     """
 
     title: ClassVar[str]
@@ -118,16 +124,25 @@ class Problem(Exception, metaclass=_ProblemMeta):
     #: ``type`` is emitted verbatim; a derived one is resolved against the docs
     #: mount at serialize time (see uris.resolve_type_uri).
     _type_is_explicit: ClassVar[bool] = False
+    #: Set per class from the ``abstract`` class keyword; subclasses start concrete.
+    _abstract: ClassVar[bool] = False
     #: Response headers this problem type sends, as name -> OpenAPI description.
     headers: ClassVar[Mapping[str, str]] = {}
     detail: str | None = None
     instance: str | None = None
 
-    def __init_subclass__(cls, **kwargs) -> None:
+    def __init_subclass__(cls, *, abstract: bool = False, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
+        cls._abstract = abstract
         own_type = cls.__dict__.get("type")
         cls._type_is_explicit = own_type is not None
         cls.type = own_type if own_type is not None else _derive_type(cls.__name__)
+
+    def __post_init__(self) -> None:
+        if type(self)._abstract:
+            raise TypeError(
+                f"{type(self).__name__} is abstract; raise one of its concrete subclasses."
+            )
 
     def response_headers(self) -> Mapping[str, str]:
         """Return the header values sent with this problem's response.
@@ -162,7 +177,7 @@ class Problem(Exception, metaclass=_ProblemMeta):
 
 
 def iter_problem_types() -> Iterator[type[Problem]]:
-    """Yield every defined :class:`Problem` subclass, transitively.
+    """Yield every defined concrete :class:`Problem` subclass, transitively.
 
     Walks ``Problem.__subclasses__()`` (Python's own weakly-held subclass list),
     so no explicit registry is kept: a type is "known" exactly while it is a live
@@ -172,7 +187,8 @@ def iter_problem_types() -> Iterator[type[Problem]]:
     Yields
     ------
     type[Problem]
-        Each distinct subclass, deduplicated.
+        Each distinct concrete subclass, deduplicated. Abstract types are
+        walked for their children and left out.
     """
     seen: set[type[Problem]] = set()
     stack: list[type[Problem]] = list(Problem.__subclasses__())
@@ -181,7 +197,8 @@ def iter_problem_types() -> Iterator[type[Problem]]:
         if cls in seen:
             continue
         seen.add(cls)
-        yield cls
+        if not cls._abstract:
+            yield cls
         stack.extend(cls.__subclasses__())
 
 
