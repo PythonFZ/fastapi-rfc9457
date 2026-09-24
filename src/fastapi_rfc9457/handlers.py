@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from http import HTTPStatus
-from typing import cast
+from typing import Any, cast
 
 from fastapi import Request
 from fastapi.encoders import jsonable_encoder
@@ -15,10 +16,74 @@ from starlette.responses import Response
 
 from .builtins import InternalServerError, InvalidParam, ValidationProblem
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
-from .problem import Problem, UndeclaredHeaderWarning, extension_fields, sent_headers
+from .problem import (
+    Problem,
+    UndeclaredHeaderWarning,
+    extension_fields,
+    require_concrete,
+    sent_headers,
+)
 from .uris import resolve_type_uri
 
 Handler = Callable[[Request, Exception], Awaitable[Response]]
+
+_BUILTINS_STATE = "_fastapi_rfc9457_builtins"
+
+
+@dataclass(frozen=True)
+class BuiltinProblems:
+    """The problem classes the validation and unhandled-exception handlers answer with.
+
+    Parameters
+    ----------
+    validation : type[ValidationProblem]
+        The class a request-validation failure answers with.
+    internal : type[InternalServerError]
+        The class an unhandled exception answers with.
+
+    Raises
+    ------
+    TypeError
+        If a class subclasses a different default, or is abstract.
+    """
+
+    validation: type[ValidationProblem] = ValidationProblem
+    internal: type[InternalServerError] = InternalServerError
+
+    def __post_init__(self) -> None:
+        for name, cls, default in (
+            ("validation", self.validation, ValidationProblem),
+            ("internal", self.internal, InternalServerError),
+        ):
+            if not (isinstance(cls, type) and issubclass(cls, default)):
+                raise TypeError(f"{name}= takes a subclass of {default.__name__}; got {cls!r}.")
+            require_concrete(cls)
+
+    def store(self, app: Any) -> None:
+        """Record these classes on ``app.state`` for the OpenAPI and docs builders.
+
+        Parameters
+        ----------
+        app : Any
+            The FastAPI application.
+        """
+        setattr(app.state, _BUILTINS_STATE, self)
+
+    @classmethod
+    def of(cls, app: Any) -> BuiltinProblems:
+        """Return the classes ``app`` answers with; the defaults for an unwired app.
+
+        Parameters
+        ----------
+        app : Any
+            The FastAPI application.
+
+        Returns
+        -------
+        BuiltinProblems
+            The classes stored by :func:`add_problem_handlers`, or the defaults.
+        """
+        return getattr(app.state, _BUILTINS_STATE, None) or cls()
 
 
 def build_wire(problem: Problem, *, instance: str | None, type_uri: str) -> ProblemDetail:
@@ -71,7 +136,12 @@ def _warn_undeclared_headers(cls: type[Problem], headers: Mapping[str, str]) -> 
             )
 
 
-def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[type, Handler]:
+def make_handlers(
+    *,
+    strip_debug: bool,
+    instance_from_request: bool,
+    builtins: BuiltinProblems | None = None,
+) -> dict[type, Handler]:
     """Build the exception-type -> handler mapping for ``add_exception_handler``.
 
     Parameters
@@ -80,12 +150,17 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
         Redact ``detail`` on 500s and the offending ``input`` on 422s.
     instance_from_request : bool
         Auto-fill ``instance`` from the request path when unset.
+    builtins : BuiltinProblems | None, optional
+        The classes the 422 and 500 handlers answer with, by default
+        ``ValidationProblem`` and ``InternalServerError``.
 
     Returns
     -------
     dict[type, Handler]
         Mapping suitable for iterating into ``app.add_exception_handler``.
     """
+    answering = builtins or BuiltinProblems()
+    validation, internal = answering.validation, answering.internal
 
     def _instance(request: Request) -> str | None:
         return request.url.path if instance_from_request else None
@@ -111,9 +186,9 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
         n = len(params)
         wire = ProblemDetail.model_validate(
             {
-                "type": resolve_type_uri(request.app, ValidationProblem),
-                "title": ValidationProblem.title,
-                "status": ValidationProblem.status,
+                "type": resolve_type_uri(request.app, validation),
+                "title": validation.title,
+                "status": validation.status,
                 "detail": f"Request validation failed ({n} error{'' if n == 1 else 's'}).",
                 "instance": _instance(request),
                 "errors": [p.model_dump(exclude_none=True) for p in params],
@@ -137,9 +212,9 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
 
     async def unhandled_handler(request: Request, exc: Exception) -> Response:
         wire = ProblemDetail(
-            type=resolve_type_uri(request.app, InternalServerError),
-            title=InternalServerError.title,
-            status=InternalServerError.status,
+            type=resolve_type_uri(request.app, internal),
+            title=internal.title,
+            status=internal.status,
             detail=None if strip_debug else f"{type(exc).__name__}: {exc}",
             instance=_instance(request),
         )

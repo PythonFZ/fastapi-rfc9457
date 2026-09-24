@@ -1,0 +1,131 @@
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from fastapi_rfc9457 import InternalServerError, Problem, ValidationProblem
+from fastapi_rfc9457.client import raise_for_problem
+from fastapi_rfc9457.docs import get_problem_docs_router
+from fastapi_rfc9457.integration import add_problem_handlers
+
+
+class AppError(Exception):
+    """An application's own error base."""
+
+
+class NamedInvalid(ValidationProblem, AppError):
+    """The request failed this app's validation."""
+
+    title = "Invalid Request"
+
+
+class NamedBroken(InternalServerError, AppError):
+    """This app broke."""
+
+    title = "Broken"
+
+
+class AbstractInvalid(ValidationProblem, abstract=True):
+    """An abstract validation base."""
+
+
+class Unrelated(Problem):
+    """A problem outside the validation hierarchy."""
+
+    title = "Unrelated"
+    status = 422
+
+
+def build_app(*, docs: bool = False) -> FastAPI:
+    app = FastAPI()
+    add_problem_handlers(app, validation=NamedInvalid, internal=NamedBroken)
+    if docs:
+        app.include_router(get_problem_docs_router(), prefix="/problems")
+
+    @app.get("/items/{item_id}")
+    async def get_item(item_id: int) -> dict:
+        return {"id": item_id}
+
+    @app.get("/boom")
+    async def boom() -> dict:
+        raise RuntimeError("kaput")
+
+    return app
+
+
+def test_422_carries_the_named_validation_class():
+    r = TestClient(build_app()).get("/items/abc")
+    body = r.json()
+    assert r.status_code == 422
+    assert body["type"] == "named-invalid"
+    assert body["title"] == "Invalid Request"
+    assert body["status"] == 422
+    assert body["errors"][0]["loc"] == ["path", "item_id"]
+
+
+def test_500_carries_the_named_internal_class():
+    client = TestClient(build_app(), raise_server_exceptions=False)
+    body = client.get("/boom").json()
+    assert body["type"] == "named-broken"
+    assert body["title"] == "Broken"
+    assert body["status"] == 500
+
+
+def test_client_raises_the_named_validation_class():
+    r = TestClient(build_app()).get("/items/abc")
+    with pytest.raises(NamedInvalid) as caught:
+        raise_for_problem(r)
+    assert isinstance(caught.value, AppError)
+    assert caught.value.errors[0].loc == ["path", "item_id"]
+
+
+def test_client_raises_the_named_internal_class():
+    r = TestClient(build_app(), raise_server_exceptions=False).get("/boom")
+    with pytest.raises(NamedBroken):
+        raise_for_problem(r)
+
+
+def test_openapi_422_references_the_named_validation_class():
+    doc = TestClient(build_app(docs=True)).get("/openapi.json").json()
+    content = doc["paths"]["/items/{item_id}"]["get"]["responses"]["422"]["content"]
+    ref = content["application/problem+json"]["schema"]["$ref"]
+    assert ref == "#/components/schemas/NamedInvalid"
+    schemas = doc["components"]["schemas"]
+    assert "ValidationProblem" not in schemas
+    assert schemas["NamedInvalid"]["properties"]["type"]["const"] == "/problems/named-invalid"
+
+
+def test_docs_page_serves_the_named_classes():
+    client = TestClient(build_app(docs=True))
+    headers = {"accept": "application/json"}
+    assert client.get("/problems/named-invalid", headers=headers).json()["title"] == (
+        "Invalid Request"
+    )
+    assert client.get("/problems/named-broken", headers=headers).json()["title"] == "Broken"
+    assert client.get("/problems/validation").status_code == 404
+    assert client.get("/problems/internal-server-error").status_code == 404
+
+
+def test_defaults_answer_with_the_builtin_classes():
+    app = FastAPI()
+    add_problem_handlers(app)
+
+    @app.get("/items/{item_id}")
+    async def get_item(item_id: int) -> dict:
+        return {"id": item_id}
+
+    body = TestClient(app).get("/items/abc").json()
+    assert body["type"] == "validation"
+    assert body["title"] == ValidationProblem.title
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"validation": Unrelated}, "subclass of ValidationProblem"),
+        ({"internal": NamedInvalid}, "subclass of InternalServerError"),
+        ({"validation": AbstractInvalid}, "abstract"),
+    ],
+)
+def test_rejects_a_class_outside_the_default_or_abstract(kwargs, message):
+    with pytest.raises(TypeError, match=message):
+        add_problem_handlers(FastAPI(), **kwargs)

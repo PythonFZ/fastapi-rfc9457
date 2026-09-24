@@ -23,7 +23,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute, iter_route_contexts
 from pydantic import BaseModel, ConfigDict, create_model
 
-from .builtins import ValidationProblem
+from .handlers import BuiltinProblems
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
 from .problem import Problem, example_headers, extension_fields, require_concrete
 from .uris import resolve_type_uri
@@ -351,13 +351,16 @@ def _ensure_component(components: dict[str, Any], model: type[BaseModel]) -> Non
         components.setdefault(name, sub_schema)
 
 
-def _rewrite_validation_responses(paths: dict[str, Any], components: dict[str, Any]) -> None:
+def _rewrite_validation_responses(
+    paths: dict[str, Any], components: dict[str, Any], validation: type[Problem]
+) -> None:
     """Rewrite FastAPI's auto-generated 422 to ``application/problem+json``.
 
-    The runtime already emits ``ValidationProblem`` as ``application/problem+json``;
+    The runtime already emits ``validation`` as ``application/problem+json``;
     this aligns the *documentation* (RFC 9457 §3) for every route FastAPI gave a
     default ``HTTPValidationError`` 422.
     """
+    model = _wire_model(validation)
     rewrote = False
     for path_item in paths.values():
         if not isinstance(path_item, dict):
@@ -372,12 +375,12 @@ def _rewrite_validation_responses(paths: dict[str, Any], components: dict[str, A
             if schema.get("$ref") == _HTTP_VALIDATION_ERROR:
                 response["content"] = {
                     PROBLEM_MEDIA_TYPE: {
-                        "schema": {"$ref": _REF_TEMPLATE.format(model="ValidationProblem")}
+                        "schema": {"$ref": _REF_TEMPLATE.format(model=model.__name__)}
                     }
                 }
                 rewrote = True
     if rewrote:
-        _ensure_component(components, _wire_model(ValidationProblem))
+        _ensure_component(components, model)
 
 
 def _retarget_type_uris(schema: dict[str, Any], app: FastAPI) -> None:
@@ -390,8 +393,9 @@ def _retarget_type_uris(schema: dict[str, Any], app: FastAPI) -> None:
     """
     components: dict[str, Any] = schema.get("components", {}).get("schemas", {})
     sources = list(route_problem_types(app))
-    if "ValidationProblem" in components:
-        sources.append(ValidationProblem)
+    validation = BuiltinProblems.of(app).validation
+    if validation.__name__ in components:
+        sources.append(validation)
     uri_by_name = {cls.__name__: resolve_type_uri(app, cls) for cls in sources}
 
     for name, uri in uri_by_name.items():
@@ -489,7 +493,7 @@ def register_problem_components(app: FastAPI) -> None:
                     if response is not None:
                         response["content"] = {PROBLEM_MEDIA_TYPE: media}
 
-        _rewrite_validation_responses(paths, components)
+        _rewrite_validation_responses(paths, components, BuiltinProblems.of(app).validation)
         _ensure_component(components, ProblemDetail)  # canonical open base shape
         _retarget_type_uris(schema, app)  # consts track the mounted docs prefix
         _prune_unreferenced(schema, ("HTTPValidationError", "ValidationError"))

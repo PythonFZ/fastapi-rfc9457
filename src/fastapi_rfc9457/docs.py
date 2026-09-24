@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.responses import Response
 
-from .builtins import InternalServerError, ValidationProblem
+from .handlers import BuiltinProblems
 from .openapi import route_problem_types
 from .problem import Problem, extension_fields, require_concrete
 from .uris import DOC_ROUTE, doc_route_name, resolve_type_uri, slug_of
@@ -68,9 +68,10 @@ def _render(cls: type[Problem], request: Request) -> Response:
 
 def _documented_types(app: Any) -> list[type[Problem]]:
     """Types whose doc pages this app serves: those on its routes plus the two
-    builtins ``add_problem_handlers`` always emits (validation 422, unhandled 500)."""
+    classes ``add_problem_handlers`` answers with (validation 422, unhandled 500)."""
     seen = {cls.type: cls for cls in route_problem_types(app)}
-    for cls in (ValidationProblem, InternalServerError):
+    builtins = BuiltinProblems.of(app)
+    for cls in (builtins.validation, builtins.internal):
         seen.setdefault(cls.type, cls)
     return list(seen.values())
 

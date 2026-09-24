@@ -9,7 +9,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from typing_extensions import deprecated
 
-from .handlers import make_handlers
+from .builtins import InternalServerError, ValidationProblem
+from .handlers import BuiltinProblems, make_handlers
 from .openapi import register_problem_components
 
 _INSTALLED_FLAG = "_fastapi_rfc9457_installed"
@@ -20,6 +21,8 @@ def add_problem_handlers(
     *,
     strip_debug: bool = False,
     instance_from_request: bool = True,
+    validation: type[ValidationProblem] = ValidationProblem,
+    internal: type[InternalServerError] = InternalServerError,
 ) -> None:
     """Register the four problem handlers and the OpenAPI component registration.
 
@@ -35,6 +38,18 @@ def add_problem_handlers(
         False.
     instance_from_request : bool, optional
         Auto-fill ``instance`` from the request path when unset, by default True.
+    validation : type[ValidationProblem], optional
+        The class a request-validation failure answers with (on the wire, in
+        OpenAPI and on the docs page), by default ``ValidationProblem``.
+    internal : type[InternalServerError], optional
+        The class an unhandled exception answers with, by default
+        ``InternalServerError``.
+
+    Raises
+    ------
+    TypeError
+        If ``validation`` or ``internal`` subclasses a different default, or is
+        abstract.
     """
     if getattr(app.state, _INSTALLED_FLAG, False):
         warnings.warn(
@@ -43,10 +58,14 @@ def add_problem_handlers(
         )
         return
 
-    handlers = make_handlers(strip_debug=strip_debug, instance_from_request=instance_from_request)
+    builtins = BuiltinProblems(validation=validation, internal=internal)
+    handlers = make_handlers(
+        strip_debug=strip_debug, instance_from_request=instance_from_request, builtins=builtins
+    )
     for exc_type, handler in handlers.items():
         app.add_exception_handler(exc_type, handler)
 
+    builtins.store(app)
     register_problem_components(app)
     setattr(app.state, _INSTALLED_FLAG, True)
 

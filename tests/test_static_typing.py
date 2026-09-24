@@ -1,6 +1,7 @@
 import json
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -24,6 +25,17 @@ def test_expected_errors_are_reported():
     assert "reportCallIssue" in rules  # missing required extension members
     assert "reportArgumentType" in rules  # wrong extension-member type
     assert "reportAssignmentType" in rules  # wrong ClassVar type
+
+
+@pytest.mark.skipif(shutil.which("uv") is None, reason="uv required")
+def test_named_builtin_outside_the_default_is_reported():
+    path = "tests/static/expected_errors.py"
+    lines = Path(path).read_text().splitlines()
+    marked = {i for i, line in enumerate(lines) if "# named-builtin" in line}
+    diags = _run_pyright(path, ignore_project=True)
+    flagged = {d["range"]["start"]["line"] for d in diags if d.get("rule") == "reportArgumentType"}
+    assert len(marked) == 2
+    assert marked <= flagged
 
 
 @pytest.mark.skipif(shutil.which("uv") is None, reason="uv required")
