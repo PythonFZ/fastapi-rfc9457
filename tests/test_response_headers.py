@@ -1,10 +1,18 @@
 from collections.abc import Mapping
 from typing import ClassVar
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from fastapi_rfc9457 import MethodNotAllowed, NotAuthenticated, NotFound, Problem, TooManyRequests
+from fastapi_rfc9457 import (
+    MethodNotAllowed,
+    NotAuthenticated,
+    NotFound,
+    Problem,
+    TooManyRequests,
+    UndeclaredHeaderWarning,
+)
 from fastapi_rfc9457.handlers import make_handlers
 from fastapi_rfc9457.openapi import problems, register_problem_components
 
@@ -141,3 +149,30 @@ def test_openapi_lists_each_challenge_of_a_shared_status():
         "NotAuthenticated": {"value": "Bearer"},
         "BasicAuthRequired": {"value": 'Basic realm="api"'},
     }
+
+
+class _ForgetfulMoved(Problem):
+    """Sends a header it never declared."""
+
+    title = "Moved"
+    status = 410
+
+    def response_headers(self) -> Mapping[str, str]:
+        return {"Location": "/new"}
+
+
+def test_undeclared_response_header_warns_naming_class_and_header():
+    with pytest.warns(UndeclaredHeaderWarning, match=r"_ForgetfulMoved.*'Location'"):
+        resp = _client(_ForgetfulMoved()).get("/0")
+    assert resp.headers["location"] == "/new"
+
+
+def test_declared_header_matches_case_insensitively(recwarn):
+    class LowerMoved(Moved):
+        """Returns the declared header in lower case."""
+
+        def response_headers(self) -> Mapping[str, str]:
+            return {"location": self.location}
+
+    _client(LowerMoved(location="/new")).get("/0")
+    assert not [w for w in recwarn if issubclass(w.category, UndeclaredHeaderWarning)]

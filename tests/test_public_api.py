@@ -26,6 +26,7 @@ def test_client_symbols_are_exported():
         "InternalServerError",
         "ValidationProblem",
         "InvalidParam",
+        "UndeclaredHeaderWarning",
     }
     for name in expected:
         assert hasattr(pkg, name), name
