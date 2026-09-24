@@ -10,10 +10,8 @@ from fastapi import FastAPI
 from typing_extensions import deprecated
 
 from .builtins import InternalServerError, ValidationProblem
-from .handlers import BuiltinProblems, make_handlers
+from .handlers import _BUILTINS_STATE, BuiltinProblems, make_handlers
 from .openapi import register_problem_components
-
-_INSTALLED_FLAG = "_fastapi_rfc9457_installed"
 
 
 def add_problem_handlers(
@@ -55,8 +53,8 @@ def add_problem_handlers(
         If the app is wired already with a different ``validation`` or ``internal``.
     """
     builtins = BuiltinProblems(validation=validation, internal=internal)
-    if getattr(app.state, _INSTALLED_FLAG, False):
-        wired = BuiltinProblems.of(app)
+    wired: BuiltinProblems | None = getattr(app.state, _BUILTINS_STATE, None)
+    if wired is not None:
         if wired != builtins:
             raise ValueError(
                 f"add_problem_handlers wired this app with validation={wired.validation.__name__}, "
@@ -77,7 +75,6 @@ def add_problem_handlers(
 
     builtins.store(app)
     register_problem_components(app)
-    setattr(app.state, _INSTALLED_FLAG, True)
 
 
 @deprecated("Problem types are validated when defined; drop problem_details_lifespan.")
