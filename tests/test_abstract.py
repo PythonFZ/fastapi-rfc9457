@@ -1,10 +1,7 @@
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from fastapi_rfc9457 import Problem, RetryAfter, ServiceUnavailable, TooManyRequests, parse_problem
 from fastapi_rfc9457.docs import get_problem_docs_router
-from fastapi_rfc9457.integration import problem_details_lifespan
 from fastapi_rfc9457.problem import iter_problem_types
 from fastapi_rfc9457.server import problems
 
@@ -41,12 +38,6 @@ def test_constructing_an_abstract_type_raises():
 def test_problems_rejects_an_abstract_type():
     with pytest.raises(TypeError, match="RetryAfter is abstract"):
         problems(RetryAfter)
-
-
-def test_startup_check_passes_with_abstract_types_defined():
-    app = FastAPI(lifespan=problem_details_lifespan)
-    with TestClient(app):
-        pass
 
 
 def test_client_never_resolves_an_abstract_slug():

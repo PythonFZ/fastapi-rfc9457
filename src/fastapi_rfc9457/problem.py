@@ -112,9 +112,10 @@ class Problem(Exception, metaclass=_ProblemMeta):
 
     Pass ``abstract=True`` to define a base that carries shared fields, headers
     or methods for its subclasses: ``class RetryAfter(Problem, abstract=True)``.
-    An abstract type omits ``title``/``status``, is skipped by the startup check
-    and the client ``type`` lookup, and raises ``TypeError`` when constructed.
-    Its subclasses are concrete.
+    A concrete subclass missing ``title`` or ``status`` raises ``TypeError``
+    when it is defined. An abstract type omits them, is skipped by the client
+    ``type`` lookup, and raises ``TypeError`` when constructed. Its subclasses
+    are concrete.
 
     Each class declares only its own ``headers``, ``response_headers()`` and
     ``header_examples()``; the library merges them along the MRO, so a type
@@ -140,6 +141,13 @@ class Problem(Exception, metaclass=_ProblemMeta):
     def __init_subclass__(cls, *, abstract: bool = False, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
         cls._abstract = abstract
+        if not abstract:
+            for attr in ("title", "status"):
+                if not getattr(cls, attr, None):
+                    raise TypeError(
+                        f"{cls.__name__} is missing a {attr}; set it, or declare "
+                        f"`class {cls.__name__}(..., abstract=True)` for a shared base."
+                    )
         own_type = cls.__dict__.get("type")
         cls._type_is_explicit = own_type is not None
         if own_type is not None or not abstract:

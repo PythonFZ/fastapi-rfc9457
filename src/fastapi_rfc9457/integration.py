@@ -7,10 +7,10 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from typing_extensions import deprecated
 
 from .handlers import make_handlers
 from .openapi import register_problem_components
-from .problem import iter_problem_types
 
 _INSTALLED_FLAG = "_fastapi_rfc9457_installed"
 
@@ -51,26 +51,18 @@ def add_problem_handlers(
     setattr(app.state, _INSTALLED_FLAG, True)
 
 
+@deprecated("Problem types are validated when defined; drop problem_details_lifespan.")
 @asynccontextmanager
 async def problem_details_lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Composable lifespan: validate every defined problem type on startup.
-
-    Nest this inside your own lifespan (user lifespan outer, ours inner). It
-    fails fast if any defined problem type is missing ``title`` or ``status``.
-    Duplicate type URIs are rejected later, when the OpenAPI schema is built.
+    """Deprecated no-op lifespan; problem types are validated when defined.
 
     Parameters
     ----------
     app : FastAPI
-        The application (unused today; reserved for app-metadata binding).
+        The application.
 
     Yields
     ------
     None
     """
-    for cls in iter_problem_types():
-        if not getattr(cls, "title", None):
-            raise RuntimeError(f"Problem type {cls.__name__} ({cls.type!r}) is missing a title")
-        if not getattr(cls, "status", None):
-            raise RuntimeError(f"Problem type {cls.__name__} ({cls.type!r}) is missing a status")
     yield
