@@ -1,3 +1,5 @@
+import dataclasses
+
 import pydantic
 import pytest
 
@@ -209,6 +211,18 @@ def test_str_carries_extension_fields():
 def test_str_carries_extension_fields_after_detail():
     err = RoomNotFound(detail="the room left", room="kitchen", holds=["general"])
     assert str(err) == "404 No such room — the room left: room='kitchen', holds=['general']"
+
+
+class LeakedToken(Problem):
+    title = "Leaked token"
+    status = 401
+    user: str
+    token: str = pydantic.Field(default="s3cret", repr=False)
+    salt: str = dataclasses.field(default="pepper", repr=False)
+
+
+def test_str_leaves_out_repr_false_fields():
+    assert str(LeakedToken(user="ada")) == "401 Leaked token — user='ada'"
 
 
 def test_problem_error_str_carries_detail_and_extension_members():

@@ -128,6 +128,9 @@ class Problem(Exception, metaclass=_ProblemMeta):
     ``header_examples()``; the library merges them along the MRO, so a type
     built on ``RetryAfter`` sends ``Retry-After`` alongside its own headers.
     A subclass replaces an inherited header value by returning the same name.
+
+    ``str()`` shows the extension members; declare one with ``repr=False``
+    to keep it out.
     """
 
     title: ClassVar[str]
@@ -205,7 +208,11 @@ class Problem(Exception, metaclass=_ProblemMeta):
         """Human-readable representation for logs and traceback tails."""
 
         head = f"{getattr(self, 'status', '')} {getattr(self, 'title', '')}".strip()
-        extensions = {name: getattr(self, name) for name in extension_fields(type(self))}
+        extensions = {
+            f.name: getattr(self, f.name)
+            for f in dataclasses.fields(type(self))
+            if f.repr and f.name not in _STANDARD_FIELDS
+        }
         return _describe(head or type(self).__name__, self.detail, extensions)
 
 
