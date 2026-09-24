@@ -127,12 +127,35 @@ def problems(*types_: type[Problem]) -> dict[int | str, dict[str, Any]]:
     for status, group in grouped.items():
         wires = [_wire_model(t) for t in group]
         model: Any = wires[0] if len(wires) == 1 else _union(wires)
-        descriptions = [(t.__doc__ or t.title).strip() for t in group]
-        responses[status] = {"model": model, "description": " / ".join(descriptions)}
-        headers = _header_objects(group)
-        if headers:
-            responses[status]["headers"] = headers
+        responses[status] = {"model": model, **_response_docs(group)}
     return responses
+
+
+def _response_docs(group: list[type[Problem]]) -> dict[str, Any]:
+    """Return the ``description`` and ``headers`` of the response documenting ``group``.
+
+    Raises
+    ------
+    ValueError
+        If a type's ``header_examples()`` names a header missing from its ``headers``.
+    """
+    descriptions = [(t.__doc__ or t.title).strip() for t in group]
+    docs: dict[str, Any] = {"description": " / ".join(descriptions)}
+    headers = _header_objects(group)
+    if headers:
+        docs["headers"] = headers
+    return docs
+
+
+def _document(response: dict[str, Any], group: list[type[Problem]]) -> None:
+    """Set the ``description`` and ``headers`` of an OpenAPI response to ``group``'s."""
+    response.pop("headers", None)
+    response.update(_response_docs(group))
+
+
+def _sources(members: list[type[BaseModel]]) -> list[type[Problem]]:
+    """Return the problem classes behind wire models."""
+    return [member.__problem_source__ for member in members]  # type: ignore[attr-defined]
 
 
 def _header_objects(group: list[type[Problem]]) -> dict[str, dict[str, Any]]:
@@ -369,7 +392,8 @@ def _rewrite_validation_responses(
 ) -> None:
     """Point every default ``HTTPValidationError`` 422 at ``validation``.
 
-    Serves it as ``application/problem+json``, matching what the 422 handler sends.
+    Serves it as ``application/problem+json`` with ``validation``'s description and
+    headers, matching what the 422 handler sends.
     """
     model = _wire_model(validation)
     rewrote = False
@@ -389,6 +413,7 @@ def _rewrite_validation_responses(
                         "schema": {"$ref": _REF_TEMPLATE.format(model=model.__name__)}
                     }
                 }
+                _document(response, [validation])
                 rewrote = True
     if rewrote:
         _ensure_component(components, model)
@@ -490,7 +515,9 @@ def register_problem_components(app: FastAPI) -> None:
                 members = _problem_wire_members(entry.get("model"))
                 if members is None:
                     continue
+                listed = _sources(members)
                 members = _app_members(app, members)
+                swapped = _sources(members) != listed
                 for member in members:
                     _ensure_component(components, member)
                 content_schema = _ref_schema(members, seen_uris, app)
@@ -506,6 +533,8 @@ def register_problem_components(app: FastAPI) -> None:
                     response = operation.get("responses", {}).get(str(status))
                     if response is not None:
                         response["content"] = {PROBLEM_MEDIA_TYPE: media}
+                        if swapped:
+                            _document(response, _sources(members))
 
         _rewrite_validation_responses(paths, components, BuiltinProblems.of(app).validation)
         _ensure_component(components, ProblemDetail)  # canonical open base shape

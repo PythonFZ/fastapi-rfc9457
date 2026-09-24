@@ -256,3 +256,54 @@ def test_two_apps_keep_their_own_classes():
     assert "NamedInvalid" in named_doc and "TracedInvalid" not in named_doc
     assert "TracedInvalid" in traced_doc and "NamedInvalid" not in traced_doc
     assert traced.get("/problems/named-invalid").status_code == 404
+
+
+class DocumentedInvalid(ValidationProblem):
+    """This app rejected the request."""
+
+    headers: ClassVar[Mapping[str, str]] = {"X-Trace": "The trace id."}
+
+    @classmethod
+    def header_examples(cls) -> Mapping[str, str]:
+        return {"X-Trace": "t-422"}
+
+
+class DocumentedBroken(InternalServerError):
+    """This app failed the request."""
+
+    headers: ClassVar[Mapping[str, str]] = {"X-Trace": "The trace id."}
+
+
+def documented_app() -> FastAPI:
+    app = build_app(validation=DocumentedInvalid, internal=DocumentedBroken)
+
+    @app.get("/listed/{item_id}", responses=problems(ValidationProblem, NotFound))
+    async def listed(item_id: int) -> dict:
+        return {"id": item_id}
+
+    @app.get("/fragile", responses=problems(InternalServerError))
+    async def fragile() -> dict:
+        return {}
+
+    return app
+
+
+def test_openapi_documents_the_named_class_for_a_listed_default():
+    doc = TestClient(documented_app()).get("/openapi.json").json()
+    listed = doc["paths"]["/listed/{item_id}"]["get"]["responses"]["422"]
+    assert listed["description"] == "This app rejected the request."
+    assert listed["headers"]["X-Trace"] == {
+        "description": "The trace id.",
+        "schema": {"type": "string"},
+        "example": "t-422",
+    }
+    fragile = doc["paths"]["/fragile"]["get"]["responses"]["500"]
+    assert fragile["description"] == "This app failed the request."
+    assert fragile["headers"]["X-Trace"]["description"] == "The trace id."
+
+
+def test_openapi_documents_the_named_class_for_the_default_422():
+    doc = TestClient(documented_app()).get("/openapi.json").json()
+    response = doc["paths"]["/items/{item_id}"]["get"]["responses"]["422"]
+    assert response["description"] == "This app rejected the request."
+    assert response["headers"]["X-Trace"]["example"] == "t-422"
