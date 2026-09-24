@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from fastapi_rfc9457 import Problem, RetryAfter, ServiceUnavailable, TooManyRequests, parse_problem
+from fastapi_rfc9457.docs import get_problem_docs_router
 from fastapi_rfc9457.integration import problem_details_lifespan
 from fastapi_rfc9457.problem import iter_problem_types
 from fastapi_rfc9457.server import problems
@@ -56,3 +57,30 @@ def test_client_never_resolves_an_abstract_slug():
 def test_retry_after_types_share_the_mixin():
     assert isinstance(TooManyRequests(), RetryAfter)
     assert isinstance(ServiceUnavailable(), RetryAfter)
+
+
+class _BaseWithPostInit(Problem, abstract=True):
+    """An abstract base whose __post_init__ skips super()."""
+
+    def __post_init__(self) -> None:
+        pass
+
+
+def test_abstract_type_overriding_post_init_still_refuses_construction():
+    with pytest.raises(TypeError, match="_BaseWithPostInit is abstract"):
+        _BaseWithPostInit()
+
+
+class _AbstractChild(RetryAfter, abstract=True):
+    """An abstract subclass of an abstract type."""
+
+
+def test_abstract_subclass_of_abstract_type_is_skipped_and_refuses_construction():
+    assert _AbstractChild not in set(iter_problem_types())
+    with pytest.raises(TypeError, match="_AbstractChild is abstract"):
+        _AbstractChild()
+
+
+def test_docs_router_rejects_an_abstract_type():
+    with pytest.raises(TypeError, match="RetryAfter is abstract"):
+        get_problem_docs_router(RetryAfter)

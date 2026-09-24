@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, ClassVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, NonNegativeInt
 
 from .problem import Problem
 
@@ -30,13 +30,13 @@ class NotAuthenticated(Problem):
     challenge: ClassVar[str] = "Bearer"
 
     def response_headers(self) -> Mapping[str, str]:
-        """Send the class's ``challenge`` as ``WWW-Authenticate``."""
-        return {"WWW-Authenticate": self.challenge}
+        """Add the class's ``challenge`` as ``WWW-Authenticate``."""
+        return {**super().response_headers(), "WWW-Authenticate": self.challenge}
 
     @classmethod
     def header_examples(cls) -> Mapping[str, str]:
-        """Document the class's ``challenge`` as the ``WWW-Authenticate`` example."""
-        return {"WWW-Authenticate": cls.challenge}
+        """Add the class's ``challenge`` as the ``WWW-Authenticate`` example."""
+        return {**super().header_examples(), "WWW-Authenticate": cls.challenge}
 
 
 class Forbidden(Problem):
@@ -64,8 +64,8 @@ class MethodNotAllowed(Problem):
     allow: list[str]
 
     def response_headers(self) -> Mapping[str, str]:
-        """Send ``allow`` as the ``Allow`` header."""
-        return {"Allow": ", ".join(self.allow)}
+        """Add ``allow`` as the ``Allow`` header."""
+        return {**super().response_headers(), "Allow": ", ".join(self.allow)}
 
 
 class Conflict(Problem):
@@ -89,7 +89,7 @@ class RetryAfter(Problem, abstract=True):
         "Retry-After": "Seconds to wait before retrying (RFC 9110 §10.2.3)."
     }
     #: Seconds the client waits before retrying; sent as ``Retry-After`` when set.
-    retry_after: int | None = None
+    retry_after: NonNegativeInt | None = None
 
     def response_headers(self) -> Mapping[str, str]:
         """Add ``retry_after`` as ``Retry-After`` when set."""

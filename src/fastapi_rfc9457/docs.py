@@ -11,7 +11,7 @@ from starlette.responses import Response
 
 from .builtins import InternalServerError, ValidationProblem
 from .openapi import route_problem_types
-from .problem import Problem, extension_fields
+from .problem import Problem, extension_fields, require_concrete
 from .uris import DOC_ROUTE, doc_route_name, resolve_type_uri, slug_of
 
 _HTML = """<!doctype html><meta charset="utf-8">
@@ -98,6 +98,11 @@ def get_problem_docs_router(*types: type[Problem]) -> APIRouter:
     APIRouter
         Mount it yourself with ``app.include_router(..., prefix=..., tags=...)``;
         point your ``type`` URIs at the chosen prefix.
+
+    Raises
+    ------
+    TypeError
+        If an explicitly passed type is abstract.
     """
     router = APIRouter()
 
@@ -122,6 +127,7 @@ def get_problem_docs_router(*types: type[Problem]) -> APIRouter:
         return router
 
     for cls in types:
+        require_concrete(cls, "document its concrete subclasses")
         slug = slug_of(cls)
 
         def make_endpoint(problem_cls: type[Problem]):

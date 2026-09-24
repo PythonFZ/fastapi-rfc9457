@@ -4,12 +4,14 @@ from typing import ClassVar
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from fastapi_rfc9457 import (
     MethodNotAllowed,
     NotAuthenticated,
     NotFound,
     Problem,
+    RetryAfter,
     ServiceUnavailable,
     TooManyRequests,
     UndeclaredHeaderWarning,
@@ -193,3 +195,81 @@ def test_service_unavailable_omits_retry_after_by_default():
 
 def test_openapi_documents_retry_after_on_503():
     assert set(_responses(ServiceUnavailable)["503"]["headers"]) == {"Retry-After"}
+
+
+class _Throttled(TooManyRequests):
+    """Adds a rate-limit header on top of Retry-After."""
+
+    headers: ClassVar[Mapping[str, str]] = {"X-RateLimit-Limit": "Requests allowed per window."}
+
+    def response_headers(self) -> Mapping[str, str]:
+        return {**super().response_headers(), "X-RateLimit-Limit": "100"}
+
+
+def test_subclass_headers_extend_the_inherited_declaration():
+    assert set(_Throttled.headers) == {"Retry-After", "X-RateLimit-Limit"}
+
+
+def test_subclass_adding_a_header_sends_both_without_warning(recwarn):
+    resp = _client(_Throttled(retry_after=5)).get("/0")
+    assert resp.headers["retry-after"] == "5"
+    assert resp.headers["x-ratelimit-limit"] == "100"
+    assert not [w for w in recwarn if issubclass(w.category, UndeclaredHeaderWarning)]
+
+
+def test_openapi_documents_inherited_and_added_headers():
+    assert set(_responses(_Throttled)["429"]["headers"]) == {"Retry-After", "X-RateLimit-Limit"}
+
+
+class _RetryThenAuth(RetryAfter, NotAuthenticated):
+    """Retry-After listed first in the bases."""
+
+
+class _AuthThenRetry(NotAuthenticated, RetryAfter):
+    """WWW-Authenticate listed first in the bases."""
+
+
+@pytest.mark.parametrize("cls", [_RetryThenAuth, _AuthThenRetry])
+def test_combined_bases_send_both_headers(cls, recwarn):
+    resp = _client(cls(retry_after=7)).get("/0")
+    assert resp.headers["retry-after"] == "7"
+    assert resp.headers["www-authenticate"] == "Bearer"
+    assert not [w for w in recwarn if issubclass(w.category, UndeclaredHeaderWarning)]
+
+
+@pytest.mark.parametrize("cls", [_RetryThenAuth, _AuthThenRetry])
+def test_openapi_documents_both_headers_of_combined_bases(cls):
+    headers = _responses(cls)["401"]["headers"]
+    assert set(headers) == {"Retry-After", "WWW-Authenticate"}
+    assert headers["WWW-Authenticate"]["example"] == "Bearer"
+
+
+class _UndeclaredExample(Problem):
+    """Gives an example for a header it never declared."""
+
+    title = "Odd"
+    status = 418
+
+    @classmethod
+    def header_examples(cls) -> Mapping[str, str]:
+        return {"X-Odd": "1"}
+
+
+def test_problems_rejects_an_example_for_an_undeclared_header():
+    with pytest.raises(ValueError, match=r"_UndeclaredExample.*'X-Odd'"):
+        problems(_UndeclaredExample)
+
+
+def test_retry_after_rejects_a_negative_value():
+    with pytest.raises(ValidationError):
+        TooManyRequests(retry_after=-1)
+
+
+class _AllowThenRetry(MethodNotAllowed, RetryAfter):
+    """Allow listed first in the bases."""
+
+
+def test_method_not_allowed_keeps_headers_of_later_bases():
+    resp = _client(_AllowThenRetry(allow=["GET"], retry_after=3)).get("/0")
+    assert resp.headers["allow"] == "GET"
+    assert resp.headers["retry-after"] == "3"

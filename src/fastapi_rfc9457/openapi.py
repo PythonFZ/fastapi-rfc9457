@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, create_model
 
 from .builtins import ValidationProblem
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
-from .problem import Problem, extension_fields
+from .problem import Problem, extension_fields, require_concrete
 from .uris import resolve_type_uri
 
 _REF_TEMPLATE = "#/components/schemas/{model}"
@@ -110,13 +110,17 @@ def problems(*types_: type[Problem]) -> dict[int | str, dict[str, Any]]:
     -------
     dict[int | str, dict[str, Any]]
         A ``responses=`` mapping keyed by status code.
+
+    Raises
+    ------
+    TypeError
+        If a type is abstract.
+    ValueError
+        If a type's ``header_examples()`` names a header missing from its ``headers``.
     """
     grouped: dict[int, list[type[Problem]]] = {}
     for problem_type in types_:
-        if problem_type._abstract:
-            raise TypeError(
-                f"{problem_type.__name__} is abstract; document its concrete subclasses."
-            )
+        require_concrete(problem_type, "document its concrete subclasses")
         grouped.setdefault(problem_type.status, []).append(problem_type)
 
     responses: dict[int | str, dict[str, Any]] = {}
@@ -144,6 +148,11 @@ def _header_objects(group: list[type[Problem]]) -> dict[str, dict[str, Any]]:
     dict[str, dict[str, Any]]
         Header name -> Header Object. One example value is set as ``example``;
         several distinct values are listed under ``examples``, keyed by class name.
+
+    Raises
+    ------
+    ValueError
+        If a type's ``header_examples()`` names a header missing from its ``headers``.
     """
     objects: dict[str, dict[str, Any]] = {}
     examples: dict[str, dict[str, str]] = {}
@@ -151,6 +160,11 @@ def _header_objects(group: list[type[Problem]]) -> dict[str, dict[str, Any]]:
         for name, description in problem_type.headers.items():
             objects.setdefault(name, {"description": description, "schema": {"type": "string"}})
         for name, value in problem_type.header_examples().items():
+            if name not in problem_type.headers:
+                raise ValueError(
+                    f"{problem_type.__name__}.header_examples() names {name!r}, which is "
+                    f"missing from {problem_type.__name__}.headers."
+                )
             examples.setdefault(name, {})[problem_type.__name__] = value
     for name, by_class in examples.items():
         if len(set(by_class.values())) == 1:

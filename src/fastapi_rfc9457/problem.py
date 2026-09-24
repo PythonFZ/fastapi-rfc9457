@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 import re
 from collections.abc import Iterator, Mapping
-from typing import ClassVar, dataclass_transform, get_type_hints
+from typing import Any, ClassVar, Self, dataclass_transform, get_type_hints
 
 import pydantic
 
@@ -115,6 +115,9 @@ class Problem(Exception, metaclass=_ProblemMeta):
     An abstract type omits ``title``/``status``, is skipped by the startup check
     and the client ``type`` lookup, and raises ``TypeError`` when constructed.
     Its subclasses are concrete.
+
+    A subclass's ``headers`` extend the ones it inherits, so a type built on
+    ``RetryAfter`` declares ``Retry-After`` alongside its own headers.
     """
 
     title: ClassVar[str]
@@ -126,7 +129,8 @@ class Problem(Exception, metaclass=_ProblemMeta):
     _type_is_explicit: ClassVar[bool] = False
     #: Set per class from the ``abstract`` class keyword; subclasses start concrete.
     _abstract: ClassVar[bool] = False
-    #: Response headers this problem type sends, as name -> OpenAPI description.
+    #: Response headers this problem type sends, as name -> OpenAPI description,
+    #: merged with those declared by its bases.
     headers: ClassVar[Mapping[str, str]] = {}
     detail: str | None = None
     instance: str | None = None
@@ -137,12 +141,15 @@ class Problem(Exception, metaclass=_ProblemMeta):
         own_type = cls.__dict__.get("type")
         cls._type_is_explicit = own_type is not None
         cls.type = own_type if own_type is not None else _derive_type(cls.__name__)
+        cls.headers = {
+            name: description
+            for base in reversed(cls.__mro__)
+            for name, description in base.__dict__.get("headers", {}).items()
+        }
 
-    def __post_init__(self) -> None:
-        if type(self)._abstract:
-            raise TypeError(
-                f"{type(self).__name__} is abstract; raise one of its concrete subclasses."
-            )
+    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
+        require_concrete(cls, "raise one of its concrete subclasses")
+        return super().__new__(cls, *args, **kwargs)
 
     def response_headers(self) -> Mapping[str, str]:
         """Return the header values sent with this problem's response.
@@ -174,6 +181,26 @@ class Problem(Exception, metaclass=_ProblemMeta):
         head = f"{getattr(self, 'status', '')} {getattr(self, 'title', '')}".strip()
         head = head or type(self).__name__
         return f"{head} — {self.detail}" if self.detail else head
+
+
+def require_concrete(cls: type[Problem], hint: str) -> None:
+    """Raise when ``cls`` was declared with ``abstract=True``.
+
+    Parameters
+    ----------
+    cls : type[Problem]
+        The problem type about to be raised or documented.
+    hint : str
+        What the caller does with the concrete subclasses, e.g.
+        ``"document its concrete subclasses"``.
+
+    Raises
+    ------
+    TypeError
+        If ``cls`` is abstract.
+    """
+    if cls._abstract:
+        raise TypeError(f"{cls.__name__} is abstract; {hint}.")
 
 
 def iter_problem_types() -> Iterator[type[Problem]]:
