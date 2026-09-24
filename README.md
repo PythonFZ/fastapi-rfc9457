@@ -2,11 +2,9 @@
 
 [![PyPI](https://img.shields.io/pypi/v/fastapi-rfc9457)](https://pypi.org/project/fastapi-rfc9457/)
 
-Typed, batteries-included [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html)
-"Problem Details for HTTP APIs" for FastAPI & Pydantic.
+Typed, batteries-included [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) "Problem Details for HTTP APIs" for FastAPI & Pydantic.
 
-Define an error once - it serializes as `application/problem+json`, documents
-itself in OpenAPI, and parses back into a typed exception on the client.
+Define an error once - it serializes as `application/problem+json`, documents itself in OpenAPI, and parses back into a typed exception on the client.
 
 ```python
 from fastapi import FastAPI
@@ -41,28 +39,25 @@ async def charge() -> dict:
 
 ## Accurate OpenAPI, for free
 
-One route can declare several failure modes. Distinct statuses get their own
-response; same-status problems become a `oneOf` union you flip through in
-Swagger's **Examples** dropdown — all under `application/problem+json`.
+One route can declare several failure modes.
+Distinct statuses get their own response; same-status problems become a `oneOf` union you flip through in Swagger's **Examples** dropdown — all under `application/problem+json`.
 
 ![Swagger error responses with a problem+json examples dropdown](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/swagger-errors.png)
 
 ## Dereferenceable `type` URIs
 
-Mount the docs router and every problem `type` resolves to a live page listing
-its typed extension members.
+Mount the docs router and every problem `type` resolves to a live page listing its typed extension members.
 
-The `type` follows the docs-router mount: mount at `prefix="/problems"` and
-`OutOfCredit` emits and serves `/problems/out-of-credit`. Change the prefix and
-bodies, OpenAPI, and doc pages move together. Set `type` on the class to emit a
-literal URI.
+The `type` follows the docs-router mount: mount at `prefix="/problems"` and `OutOfCredit` emits and serves `/problems/out-of-credit`.
+Change the prefix and bodies, OpenAPI, and doc pages move together.
+Set `type` on the class to emit a literal URI.
 
 ![Problem type documentation page](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/doc-page.png)
 
 ## Response headers
 
-A problem type declares the headers it sends in `headers` (name → OpenAPI description) and
-returns their values from `response_headers()`. The built-ins send the headers RFC 9110 asks for:
+A problem type declares the headers it sends in `headers` (name → OpenAPI description) and returns their values from `response_headers()`.
+The built-ins send the headers RFC 9110 asks for:
 
 ```python
 raise NotAuthenticated()                 # WWW-Authenticate: Bearer
@@ -90,8 +85,7 @@ Sending a header missing from `headers` emits `UndeclaredHeaderWarning`.
 
 ## Typed exceptions on the client
 
-Client-side, the package can parse
-`application/problem+json` back into typed problems the server raised.
+Client-side, the package can parse `application/problem+json` back into typed problems the server raised.
 
 ```python
 import httpx
@@ -114,14 +108,12 @@ with httpx.Client(
         print(exc.balance)       # extension members round-trip back as typed attributes
 ```
 
-Prefer to parse explicitly? `parse_problem(response)` returns the typed `Problem`
-(or a generic `ProblemDetail` for an unknown `type`), and `raise_for_problem(response)`
-raises it (`ProblemError` for an unknown `type`).
+Prefer to parse explicitly?
+`parse_problem(response)` returns the typed `Problem` (or a generic `ProblemDetail` for an unknown `type`), and `raise_for_problem(response)` raises it (`ProblemError` for an unknown `type`).
 
 ## Comparison with native FastAPI
 
-The same endpoint written the way FastAPI's
-[Handling Errors](https://fastapi.tiangolo.com/tutorial/handling-errors/) tutorial shows:
+The same endpoint written the way FastAPI's [Handling Errors](https://fastapi.tiangolo.com/tutorial/handling-errors/) tutorial shows:
 
 ```python
 class OutOfCreditError(Exception):
@@ -187,13 +179,10 @@ uv add fastapi-rfc9457           # lean client: author + parse problems, Pydanti
 cd example && uv run uvicorn main:app --reload   # then open localhost:8000/docs
 ```
 
-See [`example/`](./example) for the full app and [`example/client.py`](./example/client.py)
-for a client using it.
+See [`example/`](./example) for the full app and [`example/client.py`](./example/client.py) for a client using it.
 
 ## Notes
 
-- Every error answers with `application/problem+json`: raised problems, `HTTPException`,
-  request validation (422), and unhandled exceptions (500).
-- 500 bodies include the exception message by default. Pass
-  `add_problem_handlers(app, strip_debug=True)` in production to redact it and the
-  offending input on 422s.
+- Every error answers with `application/problem+json`: raised problems, `HTTPException`, request validation (422), and unhandled exceptions (500).
+- 500 bodies include the exception message by default.
+  Pass `add_problem_handlers(app, strip_debug=True)` in production to redact it and the offending input on 422s.
