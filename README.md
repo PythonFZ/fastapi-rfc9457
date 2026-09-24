@@ -47,17 +47,15 @@ Swagger's **Examples** dropdown — all under `application/problem+json`.
 
 ![Swagger error responses with a problem+json examples dropdown](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/swagger-errors.png)
 
-
-
 ## Dereferenceable `type` URIs
 
 Mount the docs router and every problem `type` resolves to a live page listing
 its typed extension members.
 
-The `type` is derived from the docs-router mount, not hard-coded: mount at
-`prefix="/problems"` and `OutOfCredit` emits and serves `/problems/out-of-credit`.
-Change the prefix and bodies, OpenAPI, and doc pages move together. Set `type`
-explicitly to emit a literal URI instead.
+The `type` follows the docs-router mount: mount at `prefix="/problems"` and
+`OutOfCredit` emits and serves `/problems/out-of-credit`. Change the prefix and
+bodies, OpenAPI, and doc pages move together. Set `type` on the class to emit a
+literal URI.
 
 ![Problem type documentation page](https://raw.githubusercontent.com/PythonFZ/fastapi-rfc9457/main/docs/img/doc-page.png)
 
@@ -118,10 +116,12 @@ with httpx.Client(
 
 Prefer to parse explicitly? `parse_problem(response)` returns the typed `Problem`
 (or a generic `ProblemDetail` for an unknown `type`), and `raise_for_problem(response)`
-raises it.
+raises it (`ProblemError` for an unknown `type`).
 
 ## Comparison with native FastAPI
-see [Handling Errors](https://fastapi.tiangolo.com/tutorial/handling-errors/)
+
+The same endpoint written the way FastAPI's
+[Handling Errors](https://fastapi.tiangolo.com/tutorial/handling-errors/) tutorial shows:
 
 ```python
 class OutOfCreditError(Exception):
@@ -187,10 +187,13 @@ uv add fastapi-rfc9457           # lean client: author + parse problems, Pydanti
 cd example && uv run uvicorn main:app --reload   # then open localhost:8000/docs
 ```
 
-See [`example/`](./example) for the full runnable app, and
-[`example/client.py`](./example/client.py) for the httpx hook (`uv add fastapi-rfc9457 httpx`)
-that raises those problems back as typed exceptions on the consumer side.
+See [`example/`](./example) for the full app and [`example/client.py`](./example/client.py)
+for a client using it.
 
 ## Notes
 
-- Replaces FastAPI's default 422 body with `application/problem+json`.
+- Every error answers with `application/problem+json`: raised problems, `HTTPException`,
+  request validation (422), and unhandled exceptions (500).
+- 500 bodies include the exception message by default. Pass
+  `add_problem_handlers(app, strip_debug=True)` in production to redact it and the
+  offending input on 422s.
