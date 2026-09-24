@@ -23,8 +23,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute, iter_route_contexts
 from pydantic import BaseModel, ConfigDict, create_model
 
-from .builtins import InternalServerError, ValidationProblem
-from .handlers import BuiltinProblems
+from .builtins import BuiltinProblems, InternalServerError, ValidationProblem
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
 from .problem import Problem, example_headers, extension_fields, require_concrete
 from .uris import resolve_type_uri

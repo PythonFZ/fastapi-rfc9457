@@ -9,8 +9,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from typing_extensions import deprecated
 
-from .builtins import InternalServerError, ValidationProblem
-from .handlers import _BUILTINS_STATE, BuiltinProblems, make_handlers
+from .builtins import _BUILTINS_STATE, BuiltinProblems, InternalServerError, ValidationProblem
+from .handlers import make_handlers
 from .openapi import register_problem_components
 
 

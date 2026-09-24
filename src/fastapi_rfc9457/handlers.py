@@ -2,92 +2,23 @@
 
 from __future__ import annotations
 
-import dataclasses
 import warnings
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass
 from http import HTTPStatus
 from typing import cast
 
-from fastapi import FastAPI, Request
+from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
-from .builtins import InternalServerError, InvalidParam, ValidationProblem
+from .builtins import BuiltinProblems, InvalidParam
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
-from .problem import (
-    Problem,
-    UndeclaredHeaderWarning,
-    extension_fields,
-    require_concrete,
-    sent_headers,
-)
+from .problem import Problem, UndeclaredHeaderWarning, extension_fields, sent_headers
 from .uris import resolve_type_uri
 
 Handler = Callable[[Request, Exception], Awaitable[Response]]
-
-_BUILTINS_STATE = "_fastapi_rfc9457_builtins"
-
-
-@dataclass(frozen=True)
-class BuiltinProblems:
-    """The problem classes the validation and unhandled-exception handlers answer with.
-
-    Parameters
-    ----------
-    validation : type[ValidationProblem]
-        The class a request-validation failure answers with.
-    internal : type[InternalServerError]
-        The class an unhandled exception answers with.
-
-    Raises
-    ------
-    TypeError
-        If a class subclasses a different default, is abstract, changes the
-        default's ``status`` or adds an extension field without a default.
-    """
-
-    validation: type[ValidationProblem] = ValidationProblem
-    internal: type[InternalServerError] = InternalServerError
-
-    def __post_init__(self) -> None:
-        for name, cls, default in (
-            ("validation", self.validation, ValidationProblem),
-            ("internal", self.internal, InternalServerError),
-        ):
-            if not (isinstance(cls, type) and issubclass(cls, default)):
-                raise TypeError(f"{name}= takes a subclass of {default.__name__}; got {cls!r}.")
-            require_concrete(cls)
-            if cls.status != default.status:
-                raise TypeError(
-                    f"{name}={cls.__name__} answers with status {default.status}; "
-                    f"it sets {cls.status}."
-                )
-            inherited = extension_fields(default).keys()
-            required = [
-                field.name
-                for field in dataclasses.fields(cls)
-                if field.name not in inherited
-                and field.default is dataclasses.MISSING
-                and field.default_factory is dataclasses.MISSING
-            ]
-            if required:
-                raise TypeError(
-                    f"{name}={cls.__name__} requires {sorted(required)}; the handler "
-                    "fills only the fields of "
-                    f"{default.__name__}, so give them defaults."
-                )
-
-    def store(self, app: FastAPI) -> None:
-        """Record these classes on ``app.state`` for the OpenAPI and docs builders."""
-        setattr(app.state, _BUILTINS_STATE, self)
-
-    @classmethod
-    def of(cls, app: FastAPI) -> BuiltinProblems:
-        """Return the classes stored on ``app``; the defaults for an unwired app."""
-        return getattr(app.state, _BUILTINS_STATE, cls())
 
 
 def build_wire(problem: Problem, *, instance: str | None, type_uri: str) -> ProblemDetail:

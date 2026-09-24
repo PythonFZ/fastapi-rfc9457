@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.responses import Response
 
-from .handlers import BuiltinProblems
+from .builtins import BuiltinProblems
 from .openapi import route_problem_types
 from .problem import Problem, extension_fields, require_concrete
 from .uris import DOC_ROUTE, doc_route_name, resolve_type_uri, slug_of
