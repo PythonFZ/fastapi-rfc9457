@@ -15,9 +15,9 @@ curl -s localhost:8000/problems/out-of-credit  # dereferenced type-doc page
 `/charge` declares three problems via `problems(...)`: a 401 and a same-status
 403 `oneOf` union (`OutOfCredit` / `AccountSuspended`) — see them in `/docs`.
 
-## Consuming it with the httpx hook
+## Consuming it with the httpx2 hook
 
-`fastapi-rfc9457` ships an httpx event hook that turns every
+`fastapi-rfc9457` ships an httpx2 event hook that turns every
 `application/problem+json` reply back into the same typed exception the server
 raised. [`client.py`](./client.py) is a runnable consumer of the server above.
 
@@ -25,7 +25,7 @@ With the demo server running (above), in another shell from this `example/`
 directory:
 
 ```bash
-uv add fastapi-rfc9457 httpx     # the lean client + your HTTP client
+uv add fastapi-rfc9457 httpx2    # the lean client + your HTTP client
 uv run client.py                 # connects to http://localhost:8000
 ```
 
@@ -38,8 +38,8 @@ OutOfCredit    -> balance=30, accounts=['/accounts/12']
 NotAuthenticated -> Log in to charge this account.
 ```
 
-The hook is synchronous (`response.read()`), so it wires onto `httpx.Client`;
-`httpx.AsyncClient` is not supported today.
+The hook is synchronous (`response.read()`), so it wires onto `httpx2.Client`;
+`httpx2.AsyncClient` is not supported today.
 
 ## Notes
 

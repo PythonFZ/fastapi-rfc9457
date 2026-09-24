@@ -15,7 +15,7 @@ def _coerce(source: Any) -> dict[str, Any]:
         return source
     if isinstance(source, (bytes, bytearray, str)):
         return json.loads(source)
-    if hasattr(source, "json"):  # httpx.Response / requests.Response
+    if hasattr(source, "json"):  # httpx2.Response / requests.Response
         return source.json()
     raise TypeError(f"Cannot parse a problem from {type(source)!r}")
 
@@ -70,12 +70,12 @@ def raise_for_problem(response: Any) -> None:
 
 
 def httpx_raise_hook():
-    """Return an httpx ``response`` event hook that auto-raises on problem responses.
+    """Return an httpx2 ``response`` event hook that auto-raises on problem responses.
 
     Returns
     -------
     Callable
-        Use as ``httpx.Client(event_hooks={"response": [httpx_raise_hook()]})``.
+        Use as ``httpx2.Client(event_hooks={"response": [httpx_raise_hook()]})``.
     """
 
     def hook(response: Any) -> None:

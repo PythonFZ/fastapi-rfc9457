@@ -1,8 +1,8 @@
-"""Client-side demo: the httpx hook turns problem+json back into typed exceptions.
+"""Client-side demo: the httpx2 hook turns problem+json back into typed exceptions.
 
-Needs httpx alongside the lean client::
+Needs httpx2 alongside the lean client::
 
-    uv add fastapi-rfc9457 httpx
+    uv add fastapi-rfc9457 httpx2
 
 Start the demo server in one shell::
 
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import os
 
-import httpx
+import httpx2
 from main import OutOfCredit, PostNotFound
 
 from fastapi_rfc9457 import NotAuthenticated, httpx_raise_hook
@@ -27,7 +27,7 @@ DEFAULT_BASE_URL = os.environ.get("DEMO_BASE_URL", "http://localhost:8000")
 
 def demo(base_url: str = DEFAULT_BASE_URL) -> None:
     """Exercise the demo endpoints, letting the hook raise typed problems."""
-    with httpx.Client(
+    with httpx2.Client(
         base_url=base_url,
         event_hooks={"response": [httpx_raise_hook()]},
     ) as client:
