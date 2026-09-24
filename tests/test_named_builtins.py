@@ -5,10 +5,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from fastapi_rfc9457 import InternalServerError, Problem, ValidationProblem
+from fastapi_rfc9457 import InternalServerError, NotFound, Problem, ValidationProblem
 from fastapi_rfc9457.client import raise_for_problem
 from fastapi_rfc9457.docs import get_problem_docs_router
 from fastapi_rfc9457.integration import add_problem_handlers
+from fastapi_rfc9457.openapi import problems
 
 
 class AppError(Exception): ...
@@ -159,6 +160,43 @@ def test_docs_page_serves_the_named_classes():
     assert client.get("/problems/named-broken", headers=headers).json()["title"] == "Broken"
     assert client.get("/problems/validation").status_code == 404
     assert client.get("/problems/internal-server-error").status_code == 404
+
+
+def build_listing_app() -> FastAPI:
+    app = build_app(docs=True)
+
+    @app.get("/listed/{item_id}", responses=problems(ValidationProblem, NotFound))
+    async def listed(item_id: int) -> dict:
+        return {"id": item_id}
+
+    @app.get("/fragile", responses=problems(InternalServerError))
+    async def fragile() -> dict:
+        return {}
+
+    return app
+
+
+def test_openapi_swaps_a_listed_default_for_the_named_class():
+    doc = TestClient(build_listing_app()).get("/openapi.json").json()
+    responses = doc["paths"]["/listed/{item_id}"]["get"]["responses"]
+    ref_422 = responses["422"]["content"]["application/problem+json"]["schema"]["$ref"]
+    fragile = doc["paths"]["/fragile"]["get"]["responses"]["500"]
+    ref_500 = fragile["content"]["application/problem+json"]["schema"]["$ref"]
+    assert ref_422 == "#/components/schemas/NamedInvalid"
+    assert ref_500 == "#/components/schemas/NamedBroken"
+    schemas = doc["components"]["schemas"]
+    assert "ValidationProblem" not in schemas
+    assert "InternalServerError" not in schemas
+    assert schemas["NamedBroken"]["properties"]["type"]["const"] == "/problems/named-broken"
+
+
+def test_docs_swap_a_listed_default_for_the_named_class():
+    client = TestClient(build_listing_app())
+    assert client.get("/problems/validation").status_code == 404
+    assert client.get("/problems/internal-server-error").status_code == 404
+    assert client.get("/problems/named-invalid").status_code == 200
+    assert client.get("/problems/named-broken").status_code == 200
+    assert client.get("/problems/not-found").status_code == 200
 
 
 def test_defaults_answer_with_the_builtin_classes():

@@ -23,6 +23,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute, iter_route_contexts
 from pydantic import BaseModel, ConfigDict, create_model
 
+from .builtins import InternalServerError, ValidationProblem
 from .handlers import BuiltinProblems
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
 from .problem import Problem, example_headers, extension_fields, require_concrete
@@ -189,12 +190,25 @@ def _problem_wire_members(model: Any) -> list[type[BaseModel]] | None:
     return None
 
 
+def _app_members(app: FastAPI, members: list[type[BaseModel]]) -> list[type[BaseModel]]:
+    """Map each wire model to the one of the app's class for it, deduplicated."""
+    builtins = BuiltinProblems.of(app)
+    named = {ValidationProblem: builtins.validation, InternalServerError: builtins.internal}
+    mapped: dict[type[BaseModel], None] = {}
+    for member in members:
+        source: type[Problem] = member.__problem_source__  # type: ignore[attr-defined]
+        mapped.setdefault(_wire_model(named.get(source, source)), None)
+    return list(mapped)
+
+
 def route_problem_types(app: FastAPI) -> list[type[Problem]]:
     """Return the problem types an app declares on its routes, in first-seen order.
 
     Recovers the authored :class:`Problem` classes from each route's
     ``responses=problems(...)`` (the same recovery the OpenAPI wrap performs), so
-    callers never restate the type list. Deduplicated by class identity.
+    callers never restate the type list. A listed ``ValidationProblem`` or
+    ``InternalServerError`` maps to the app's class for it. Deduplicated by class
+    identity.
 
     Parameters
     ----------
@@ -216,7 +230,7 @@ def route_problem_types(app: FastAPI) -> list[type[Problem]]:
             members = _problem_wire_members(entry.get("model"))
             if members is None:
                 continue
-            for member in members:
+            for member in _app_members(app, members):
                 seen.setdefault(member.__problem_source__, None)  # type: ignore[attr-defined]
     return list(seen)
 
@@ -479,6 +493,9 @@ def register_problem_components(app: FastAPI) -> None:
                 members = _problem_wire_members(entry.get("model"))
                 if members is None:
                     continue
+                members = _app_members(app, members)
+                for member in members:
+                    _ensure_component(components, member)
                 content_schema = _ref_schema(members, seen_uris, app)
                 media: dict[str, Any] = {"schema": content_schema}
                 if len(members) > 1:
@@ -496,7 +513,10 @@ def register_problem_components(app: FastAPI) -> None:
         _rewrite_validation_responses(paths, components, BuiltinProblems.of(app).validation)
         _ensure_component(components, ProblemDetail)  # canonical open base shape
         _retarget_type_uris(schema, app)  # consts track the mounted docs prefix
-        _prune_unreferenced(schema, ("HTTPValidationError", "ValidationError"))
+        _prune_unreferenced(
+            schema,
+            ("HTTPValidationError", "ValidationError", "ValidationProblem", "InternalServerError"),
+        )
 
         app.openapi_schema = schema
         return schema
