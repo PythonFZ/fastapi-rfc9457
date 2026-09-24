@@ -73,7 +73,7 @@ def add_problem_handlers(
     for exc_type, handler in handlers.items():
         app.add_exception_handler(exc_type, handler)
 
-    builtins.store(app)
+    setattr(app.state, _BUILTINS_STATE, builtins)
     register_problem_components(app)
 
 

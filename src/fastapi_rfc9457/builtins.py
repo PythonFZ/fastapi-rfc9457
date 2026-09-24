@@ -211,10 +211,6 @@ class BuiltinProblems:
                     f"{default.__name__}, so give them defaults."
                 )
 
-    def store(self, app: FastAPI) -> None:
-        """Record these classes on ``app.state`` for the OpenAPI and docs builders."""
-        setattr(app.state, _BUILTINS_STATE, self)
-
     @classmethod
     def of(cls, app: FastAPI) -> BuiltinProblems:
         """Return the classes stored on ``app``; the defaults for an unwired app."""

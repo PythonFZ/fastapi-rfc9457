@@ -75,7 +75,7 @@ def make_handlers(
     *,
     strip_debug: bool,
     instance_from_request: bool,
-    builtins: BuiltinProblems = BuiltinProblems(),
+    builtins: BuiltinProblems,
 ) -> dict[type, Handler]:
     """Build the exception-type -> handler mapping for ``add_exception_handler``.
 
@@ -85,7 +85,7 @@ def make_handlers(
         Redact ``detail`` on 500s and the offending ``input`` on 422s.
     instance_from_request : bool
         Auto-fill ``instance`` from the request path when unset.
-    builtins : BuiltinProblems, optional
+    builtins : BuiltinProblems
         The classes the 422 and 500 handlers answer with.
 
     Returns
@@ -93,7 +93,6 @@ def make_handlers(
     dict[type, Handler]
         Mapping suitable for iterating into ``app.add_exception_handler``.
     """
-    validation, internal = builtins.validation, builtins.internal
 
     def _instance(request: Request) -> str | None:
         return request.url.path if instance_from_request else None
@@ -117,7 +116,7 @@ def make_handlers(
             )
             params.append(param)
         n = len(params)
-        problem = validation(
+        problem = builtins.validation(
             errors=params,
             detail=f"Request validation failed ({n} error{'' if n == 1 else 's'}).",
         )
@@ -138,7 +137,7 @@ def make_handlers(
         return _respond(wire, exc.headers)
 
     async def unhandled_handler(request: Request, exc: Exception) -> Response:
-        problem = internal(detail=None if strip_debug else f"{type(exc).__name__}: {exc}")
+        problem = builtins.internal(detail=None if strip_debug else f"{type(exc).__name__}: {exc}")
         return await problem_handler(request, problem)
 
     return cast(
