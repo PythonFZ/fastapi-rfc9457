@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
@@ -21,6 +22,15 @@ class NotAuthenticated(Problem):
 
     title = "Unauthorized"
     status = 401
+    headers: ClassVar[Mapping[str, str]] = {
+        "WWW-Authenticate": "The authentication scheme the client must use (RFC 9110 §11.6.1)."
+    }
+    #: The ``WWW-Authenticate`` challenge, e.g. ``'Basic realm="api"'`` in a subclass.
+    challenge: ClassVar[str] = "Bearer"
+
+    def response_headers(self) -> Mapping[str, str]:
+        """Send the class's ``challenge`` as ``WWW-Authenticate``."""
+        return {"WWW-Authenticate": self.challenge}
 
 
 class Forbidden(Problem):
@@ -35,6 +45,21 @@ class NotFound(Problem):
 
     title = "Not Found"
     status = 404
+
+
+class MethodNotAllowed(Problem):
+    """The request method is not supported by the target resource."""
+
+    title = "Method Not Allowed"
+    status = 405
+    headers: ClassVar[Mapping[str, str]] = {
+        "Allow": "The methods the target resource supports (RFC 9110 §10.2.1)."
+    }
+    allow: list[str]
+
+    def response_headers(self) -> Mapping[str, str]:
+        """Send ``allow`` as the ``Allow`` header."""
+        return {"Allow": ", ".join(self.allow)}
 
 
 class Conflict(Problem):
@@ -56,6 +81,15 @@ class TooManyRequests(Problem):
 
     title = "Too Many Requests"
     status = 429
+    headers: ClassVar[Mapping[str, str]] = {
+        "Retry-After": "Seconds to wait before retrying (RFC 9110 §10.2.3)."
+    }
+    #: Seconds the client waits before retrying; sent as ``Retry-After`` when set.
+    retry_after: int | None = None
+
+    def response_headers(self) -> Mapping[str, str]:
+        """Send ``retry_after`` as ``Retry-After`` when set."""
+        return {} if self.retry_after is None else {"Retry-After": str(self.retry_after)}
 
 
 class InternalServerError(Problem):

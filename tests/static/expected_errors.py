@@ -4,7 +4,7 @@ It is EXCLUDED from the main pyright run (see pyproject [tool.pyright].exclude)
 and checked instead by tests/test_static_typing.py.
 """
 
-from fastapi_rfc9457 import Problem
+from fastapi_rfc9457 import MethodNotAllowed, NotAuthenticated, Problem
 
 
 class OutOfCredit(Problem):
@@ -22,3 +22,7 @@ OutOfCredit(status=404)  # status can not be set dynamically.
 class BadStatus(Problem):
     title = "x"
     status = "nope"  # reportAssignmentType: status is int
+
+
+MethodNotAllowed()  # reportCallIssue: missing allow
+NotAuthenticated(headers={"X": "y"})  # reportCallIssue: headers is a ClassVar

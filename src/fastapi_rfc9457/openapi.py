@@ -11,6 +11,7 @@ response to ``application/problem+json`` (FastAPI emits models under
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import types
 from functools import reduce
@@ -74,7 +75,11 @@ def _wire_model(cls: type[Problem]) -> type[BaseModel]:
     cached = _WIRE_CACHE.get(cls)
     if cached is not None:
         return cached
-    fields: dict[str, Any] = {name: (typ, ...) for name, typ in extension_fields(cls).items()}
+    defaults = {f.name: f.default for f in dataclasses.fields(cls)}
+    fields: dict[str, Any] = {
+        name: (typ, ... if defaults[name] is dataclasses.MISSING else defaults[name])
+        for name, typ in extension_fields(cls).items()
+    }
     model = create_model(  # type: ignore[call-overload]
         cls.__name__,
         __base__=_WireBase,
@@ -116,6 +121,12 @@ def problems(*types_: type[Problem]) -> dict[int | str, dict[str, Any]]:
         model: Any = wires[0] if len(wires) == 1 else _union(wires)
         descriptions = [(t.__doc__ or t.title).strip() for t in group]
         responses[status] = {"model": model, "description": " / ".join(descriptions)}
+        headers = {name: desc for t in group for name, desc in t.headers.items()}
+        if headers:
+            responses[status]["headers"] = {
+                name: {"description": desc, "schema": {"type": "string"}}
+                for name, desc in headers.items()
+            }
     return responses
 
 

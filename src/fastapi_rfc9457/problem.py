@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from typing import ClassVar, dataclass_transform, get_type_hints
 
 import pydantic
@@ -118,6 +118,8 @@ class Problem(Exception, metaclass=_ProblemMeta):
     #: ``type`` is emitted verbatim; a derived one is resolved against the docs
     #: mount at serialize time (see uris.resolve_type_uri).
     _type_is_explicit: ClassVar[bool] = False
+    #: Response headers this problem type sends, as name -> OpenAPI description.
+    headers: ClassVar[Mapping[str, str]] = {}
     detail: str | None = None
     instance: str | None = None
 
@@ -126,6 +128,19 @@ class Problem(Exception, metaclass=_ProblemMeta):
         own_type = cls.__dict__.get("type")
         cls._type_is_explicit = own_type is not None
         cls.type = own_type if own_type is not None else _derive_type(cls.__name__)
+
+    def response_headers(self) -> Mapping[str, str]:
+        """Return the header values sent with this problem's response.
+
+        Override alongside ``headers`` to send headers built from the
+        instance's fields.
+
+        Returns
+        -------
+        Mapping[str, str]
+            Header name -> value, a subset of the names declared in ``headers``.
+        """
+        return {}
 
     def __str__(self) -> str:
         """Human-readable representation for logs and traceback tails."""
