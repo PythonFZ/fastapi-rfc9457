@@ -84,3 +84,7 @@ def test_abstract_subclass_of_abstract_type_is_skipped_and_refuses_construction(
 def test_docs_router_rejects_an_abstract_type():
     with pytest.raises(TypeError, match="RetryAfter is abstract"):
         get_problem_docs_router(RetryAfter)
+
+
+def test_abstract_type_carries_no_type_uri():
+    assert RetryAfter.type is None

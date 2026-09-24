@@ -127,7 +127,7 @@ def get_problem_docs_router(*types: type[Problem]) -> APIRouter:
         return router
 
     for cls in types:
-        require_concrete(cls, "document its concrete subclasses")
+        require_concrete(cls)
         slug = slug_of(cls)
 
         def make_endpoint(problem_cls: type[Problem]):

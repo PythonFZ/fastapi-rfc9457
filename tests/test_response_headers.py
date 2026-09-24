@@ -203,7 +203,7 @@ class _Throttled(TooManyRequests):
     headers: ClassVar[Mapping[str, str]] = {"X-RateLimit-Limit": "Requests allowed per window."}
 
     def response_headers(self) -> Mapping[str, str]:
-        return {**super().response_headers(), "X-RateLimit-Limit": "100"}
+        return {"X-RateLimit-Limit": "100"}
 
 
 def test_subclass_headers_extend_the_inherited_declaration():
@@ -273,3 +273,53 @@ def test_method_not_allowed_keeps_headers_of_later_bases():
     resp = _client(_AllowThenRetry(allow=["GET"], retry_after=3)).get("/0")
     assert resp.headers["allow"] == "GET"
     assert resp.headers["retry-after"] == "3"
+
+
+class _ForgetsSuper(TooManyRequests):
+    """Overrides ``response_headers`` for its own header only."""
+
+    headers: ClassVar[Mapping[str, str]] = {"X-Shard": "The shard that throttled the request."}
+
+    def response_headers(self) -> Mapping[str, str]:
+        return {"X-Shard": "eu-1"}
+
+
+def test_override_keeps_the_headers_its_bases_send():
+    resp = _client(_ForgetsSuper(retry_after=4)).get("/0")
+    assert resp.headers["retry-after"] == "4"
+    assert resp.headers["x-shard"] == "eu-1"
+
+
+class _ReChallenged(TooManyRequests):
+    """Overrides the value of an inherited header."""
+
+    def response_headers(self) -> Mapping[str, str]:
+        return {"Retry-After": "60"}
+
+
+def test_override_replaces_an_inherited_header_value():
+    resp = _client(_ReChallenged(retry_after=4)).get("/0")
+    assert resp.headers["retry-after"] == "60"
+
+
+class _DigestAuth(NotAuthenticated):
+    """Adds an example for its own header."""
+
+    headers: ClassVar[Mapping[str, str]] = {"X-Realm": "The protection space."}
+
+    @classmethod
+    def header_examples(cls) -> Mapping[str, str]:
+        return {"X-Realm": "api"}
+
+
+def test_header_examples_keep_the_inherited_examples():
+    headers = _responses(_DigestAuth)["401"]["headers"]
+    assert headers["WWW-Authenticate"]["example"] == "Bearer"
+    assert headers["X-Realm"]["example"] == "api"
+
+
+def test_empty_headers_on_a_subclass_that_inherits_headers_raises():
+    with pytest.raises(TypeError, match=r"_Silent.headers.*'Retry-After'"):
+
+        class _Silent(TooManyRequests):
+            headers: ClassVar[Mapping[str, str]] = {}

@@ -46,6 +46,9 @@ class Throttled(RetryAfter):
     status = 429
 
 
+assert_type(Throttled(retry_after=5).retry_after, int | None)
+
+
 class Auditable(Problem, abstract=True):
     """An abstract base carrying shared fields."""
 

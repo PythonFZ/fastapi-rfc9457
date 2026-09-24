@@ -84,7 +84,7 @@ class Moved(Problem):
 
 Sending a header missing from `headers` emits `UndeclaredHeaderWarning`.
 Subclass `RetryAfter` to give a custom type the same `retry_after` field and header.
-A subclass's `headers` extend the ones it inherits.
+Each class declares only its own `headers`, `response_headers()` and `header_examples()`; the library merges them with those of its bases.
 
 ## Typed exceptions on the client
 

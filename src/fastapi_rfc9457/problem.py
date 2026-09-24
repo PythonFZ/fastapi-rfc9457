@@ -116,8 +116,10 @@ class Problem(Exception, metaclass=_ProblemMeta):
     and the client ``type`` lookup, and raises ``TypeError`` when constructed.
     Its subclasses are concrete.
 
-    A subclass's ``headers`` extend the ones it inherits, so a type built on
-    ``RetryAfter`` declares ``Retry-After`` alongside its own headers.
+    Each class declares only its own ``headers``, ``response_headers()`` and
+    ``header_examples()``; the library merges them along the MRO, so a type
+    built on ``RetryAfter`` sends ``Retry-After`` alongside its own headers.
+    A subclass replaces an inherited header value by returning the same name.
     """
 
     title: ClassVar[str]
@@ -140,22 +142,29 @@ class Problem(Exception, metaclass=_ProblemMeta):
         cls._abstract = abstract
         own_type = cls.__dict__.get("type")
         cls._type_is_explicit = own_type is not None
-        cls.type = own_type if own_type is not None else _derive_type(cls.__name__)
-        cls.headers = {
+        if own_type is not None or not abstract:
+            cls.type = own_type if own_type is not None else _derive_type(cls.__name__)
+        merged = {
             name: description
             for base in reversed(cls.__mro__)
             for name, description in base.__dict__.get("headers", {}).items()
         }
+        if "headers" in cls.__dict__ and not cls.__dict__["headers"] and merged:
+            raise TypeError(
+                f"{cls.__name__}.headers is empty, but headers extend the inherited ones "
+                f"({', '.join(map(repr, merged))}); drop the empty declaration."
+            )
+        cls.headers = merged
 
     def __new__(cls, *args: Any, **kwargs: Any) -> Self:
-        require_concrete(cls, "raise one of its concrete subclasses")
+        require_concrete(cls)
         return super().__new__(cls, *args, **kwargs)
 
     def response_headers(self) -> Mapping[str, str]:
-        """Return the header values sent with this problem's response.
+        """Return the header values this class adds to the response.
 
         Override alongside ``headers`` to send headers built from the
-        instance's fields.
+        instance's fields; the headers of the bases are merged in.
 
         Returns
         -------
@@ -166,7 +175,9 @@ class Problem(Exception, metaclass=_ProblemMeta):
 
     @classmethod
     def header_examples(cls) -> Mapping[str, str]:
-        """Return example header values for the OpenAPI docs.
+        """Return example values for the headers this class adds, for OpenAPI.
+
+        The examples of the bases are merged in.
 
         Returns
         -------
@@ -183,24 +194,54 @@ class Problem(Exception, metaclass=_ProblemMeta):
         return f"{head} — {self.detail}" if self.detail else head
 
 
-def require_concrete(cls: type[Problem], hint: str) -> None:
-    """Raise when ``cls`` was declared with ``abstract=True``.
+def require_concrete(cls: type[Problem]) -> None:
+    """Raise ``TypeError`` when ``cls`` was declared with ``abstract=True``."""
+    if cls._abstract:
+        raise TypeError(f"{cls.__name__} is abstract; use one of its concrete subclasses.")
+
+
+def _own_methods(cls: type[Problem], name: str) -> list[Any]:
+    return [base.__dict__[name] for base in reversed(cls.__mro__) if name in base.__dict__]
+
+
+def sent_headers(problem: Problem) -> dict[str, str]:
+    """Merge the ``response_headers()`` of every class in the problem's MRO.
+
+    Parameters
+    ----------
+    problem : Problem
+        The raised problem.
+
+    Returns
+    -------
+    dict[str, str]
+        Header name -> value; a subclass's value replaces an inherited one.
+    """
+    return {
+        name: value
+        for method in _own_methods(type(problem), "response_headers")
+        for name, value in method(problem).items()
+    }
+
+
+def example_headers(cls: type[Problem]) -> dict[str, str]:
+    """Merge the ``header_examples()`` of every class in the MRO of ``cls``.
 
     Parameters
     ----------
     cls : type[Problem]
-        The problem type about to be raised or documented.
-    hint : str
-        What the caller does with the concrete subclasses, e.g.
-        ``"document its concrete subclasses"``.
+        The documented problem type.
 
-    Raises
-    ------
-    TypeError
-        If ``cls`` is abstract.
+    Returns
+    -------
+    dict[str, str]
+        Header name -> example value; a subclass's example replaces an inherited one.
     """
-    if cls._abstract:
-        raise TypeError(f"{cls.__name__} is abstract; {hint}.")
+    return {
+        name: value
+        for method in _own_methods(cls, "header_examples")
+        for name, value in method.__func__(cls).items()
+    }
 
 
 def iter_problem_types() -> Iterator[type[Problem]]:

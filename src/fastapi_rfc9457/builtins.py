@@ -30,13 +30,13 @@ class NotAuthenticated(Problem):
     challenge: ClassVar[str] = "Bearer"
 
     def response_headers(self) -> Mapping[str, str]:
-        """Add the class's ``challenge`` as ``WWW-Authenticate``."""
-        return {**super().response_headers(), "WWW-Authenticate": self.challenge}
+        """Send the class's ``challenge`` as ``WWW-Authenticate``."""
+        return {"WWW-Authenticate": self.challenge}
 
     @classmethod
     def header_examples(cls) -> Mapping[str, str]:
-        """Add the class's ``challenge`` as the ``WWW-Authenticate`` example."""
-        return {**super().header_examples(), "WWW-Authenticate": cls.challenge}
+        """Document the class's ``challenge`` as the ``WWW-Authenticate`` example."""
+        return {"WWW-Authenticate": cls.challenge}
 
 
 class Forbidden(Problem):
@@ -64,8 +64,8 @@ class MethodNotAllowed(Problem):
     allow: list[str]
 
     def response_headers(self) -> Mapping[str, str]:
-        """Add ``allow`` as the ``Allow`` header."""
-        return {**super().response_headers(), "Allow": ", ".join(self.allow)}
+        """Send ``allow`` as the ``Allow`` header."""
+        return {"Allow": ", ".join(self.allow)}
 
 
 class Conflict(Problem):
@@ -92,11 +92,8 @@ class RetryAfter(Problem, abstract=True):
     retry_after: NonNegativeInt | None = None
 
     def response_headers(self) -> Mapping[str, str]:
-        """Add ``retry_after`` as ``Retry-After`` when set."""
-        headers = dict(super().response_headers())
-        if self.retry_after is not None:
-            headers["Retry-After"] = str(self.retry_after)
-        return headers
+        """Send ``retry_after`` as ``Retry-After`` when set."""
+        return {} if self.retry_after is None else {"Retry-After": str(self.retry_after)}
 
 
 class TooManyRequests(RetryAfter):
