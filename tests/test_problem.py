@@ -1,3 +1,5 @@
+import dataclasses
+
 import pydantic
 import pytest
 
@@ -181,18 +183,76 @@ def test_extension_fields_excludes_standard_members():
 
 def test_str_is_human_readable_with_detail():
     err = OutOfCredit(detail="Your balance is too low.", balance=30, accounts=[])
-    assert str(err) == "403 Out of Credit — Your balance is too low."
+    assert str(err) == "403 Out of Credit — Your balance is too low. (balance=30, accounts=[])"
 
 
 def test_str_omits_detail_when_absent():
-    err = OutOfCredit(balance=30, accounts=[])
-    assert str(err) == "403 Out of Credit"
+    assert str(PostNotFound()) == "404 Not Found"
 
 
 def test_str_falls_back_when_status_and_title_unset():
     # A bare `Problem` (or a half-authored subclass) has no `status`/`title`.
     # `str()` must still yield something rather than raising.
     assert str(Problem(detail="boom")) == "Problem — boom"
+
+
+class RoomNotFound(Problem):
+    title = "No such room"
+    status = 404
+    room: str
+    holds: list[str]
+
+
+def test_str_carries_extension_fields():
+    err = RoomNotFound(room="kitchen", holds=["general"])
+    assert str(err) == "404 No such room — room='kitchen', holds=['general']"
+
+
+def test_str_carries_extension_fields_after_detail():
+    err = RoomNotFound(detail="the room left", room="kitchen", holds=["general"])
+    assert str(err) == "404 No such room — the room left (room='kitchen', holds=['general'])"
+
+
+class LeakedToken(Problem):
+    title = "Leaked token"
+    status = 401
+    user: str
+    token: str = pydantic.Field(default="s3cret", repr=False)
+    salt: str = dataclasses.field(default="pepper", repr=False)
+
+
+def test_str_leaves_out_repr_false_fields():
+    assert str(LeakedToken(user="ada")) == "401 Leaked token — user='ada'"
+
+
+def test_problem_error_str_carries_detail_and_extension_members():
+    pd = ProblemDetail.model_validate(
+        {
+            "type": "/problems/room-not-found",
+            "title": "No such room",
+            "status": 404,
+            "detail": "the room left",
+            "room": "kitchen",
+            "holds": ["general"],
+        }
+    )
+    assert (
+        str(ProblemError(pd))
+        == "404 No such room — the room left (room='kitchen', holds=['general'])"
+    )
+
+
+def test_problem_error_str_without_extras_is_the_head():
+    assert str(ProblemError(ProblemDetail(title="Gone", status=410))) == "410 Gone"
+
+
+def test_problem_error_str_strips_an_empty_title():
+    assert str(ProblemError(ProblemDetail(title="", status=410))) == "410"
+
+
+def test_problem_error_str_falls_back_when_status_and_title_missing():
+    pd = ProblemDetail.model_construct(detail="boom")
+    assert str(ProblemError(pd)) == "ProblemError — boom"
 
 
 def test_problem_error_wraps_a_detail():
