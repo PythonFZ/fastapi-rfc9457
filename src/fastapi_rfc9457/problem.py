@@ -67,9 +67,17 @@ def extension_fields(cls: type) -> dict[str, type]:
 
 
 def _describe(head: str, detail: str | None, extensions: Mapping[str, Any]) -> str:
-    """Render ``"404 No such room — the room left: room='kitchen'"``."""
+    """Render a problem for ``str()``.
+
+    .. code-block:: text
+
+        404 No such room — room='kitchen'
+        404 No such room — the room left (room='kitchen')
+    """
     fields = ", ".join(f"{name}={value!r}" for name, value in extensions.items())
-    tail = ": ".join(part for part in (detail, fields) if part)
+    if detail and fields:
+        return f"{head} — {detail} ({fields})"
+    tail = detail or fields
     return f"{head} — {tail}" if tail else head
 
 

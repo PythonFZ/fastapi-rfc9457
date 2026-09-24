@@ -183,7 +183,7 @@ def test_extension_fields_excludes_standard_members():
 
 def test_str_is_human_readable_with_detail():
     err = OutOfCredit(detail="Your balance is too low.", balance=30, accounts=[])
-    assert str(err) == "403 Out of Credit — Your balance is too low.: balance=30, accounts=[]"
+    assert str(err) == "403 Out of Credit — Your balance is too low. (balance=30, accounts=[])"
 
 
 def test_str_omits_detail_when_absent():
@@ -210,7 +210,7 @@ def test_str_carries_extension_fields():
 
 def test_str_carries_extension_fields_after_detail():
     err = RoomNotFound(detail="the room left", room="kitchen", holds=["general"])
-    assert str(err) == "404 No such room — the room left: room='kitchen', holds=['general']"
+    assert str(err) == "404 No such room — the room left (room='kitchen', holds=['general'])"
 
 
 class LeakedToken(Problem):
@@ -238,7 +238,7 @@ def test_problem_error_str_carries_detail_and_extension_members():
     )
     assert (
         str(ProblemError(pd))
-        == "404 No such room — the room left: room='kitchen', holds=['general']"
+        == "404 No such room — the room left (room='kitchen', holds=['general'])"
     )
 
 
