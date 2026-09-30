@@ -212,7 +212,7 @@ def route_problem_types(app: FastAPI) -> list[type[Problem]]:
         route = ctx.original_route
         if not isinstance(route, APIRoute):
             continue
-        for entry in route.responses.values():
+        for entry in ctx.responses.values():
             members = _problem_wire_members(entry.get("model"))
             if members is None:
                 continue
@@ -471,7 +471,7 @@ def register_problem_components(app: FastAPI) -> None:
             path_item = paths.get(path)
             if path_item is None:
                 continue
-            for status, entry in route.responses.items():
+            for status, entry in ctx.responses.items():
                 members = _problem_wire_members(entry.get("model"))
                 if members is None:
                     continue

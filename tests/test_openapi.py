@@ -316,3 +316,31 @@ def test_route_problem_types_discovers_types_on_included_router():
     app.include_router(router, prefix="/api")
 
     assert Charged in route_problem_types(app)
+
+
+def _app_declaring_charged_on(level: str) -> FastAPI:
+    declared = problems(Charged)
+    app = FastAPI(responses=declared if level == "app" else None)
+    router = APIRouter(responses=declared if level == "router" else None)
+
+    @router.get("/c", responses=declared if level == "route" else None)
+    async def c() -> dict:
+        return {}
+
+    app.include_router(router, responses=declared if level == "include_router" else None)
+    return app
+
+
+@pytest.mark.parametrize("level", ["route", "router", "include_router", "app"])
+def test_problem_declared_at_any_level_uses_problem_media_type(level: str):
+    app = _app_declaring_charged_on(level)
+
+    resp = _openapi(app)["paths"]["/c"]["get"]["responses"]["403"]
+    assert list(resp["content"]) == [PROBLEM_MEDIA_TYPE]
+
+
+@pytest.mark.parametrize("level", ["route", "router", "include_router", "app"])
+def test_route_problem_types_discovers_types_declared_at_any_level(level: str):
+    app = _app_declaring_charged_on(level)
+
+    assert route_problem_types(app) == [Charged]
