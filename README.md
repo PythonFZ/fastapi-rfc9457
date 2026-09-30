@@ -15,20 +15,22 @@ from fastapi_rfc9457.server import add_problem_handlers, get_problem_docs_router
 
 class OutOfCredit(Problem):
     """The account does not have enough credit."""
+
     title = "Out of Credit"
     status = 403
-    balance: int            # typed extension members, checked at the raise site
+    balance: int  # typed extension members, checked at the raise site
     accounts: list[str]
 
 
 class AccountSuspended(Problem):
     """The account is suspended and cannot be charged."""
+
     title = "Account Suspended"
     status = 403
 
 
 app = FastAPI()
-add_problem_handlers(app)                                          # handlers + problem+json OpenAPI
+add_problem_handlers(app)  # handlers + problem+json OpenAPI
 app.include_router(get_problem_docs_router(), prefix="/problems")  # dereferenceable type URIs
 
 
@@ -60,13 +62,14 @@ A problem type declares the headers it sends in `headers` (name → OpenAPI desc
 The built-ins send the headers RFC 9110 asks for:
 
 ```python
-raise NotAuthenticated()                   # WWW-Authenticate: Bearer
-raise TooManyRequests(retry_after=30)      # Retry-After: 30
+raise NotAuthenticated()  # WWW-Authenticate: Bearer
+raise TooManyRequests(retry_after=30)  # Retry-After: 30
 raise ServiceUnavailable(retry_after=120)  # Retry-After: 120
-raise MethodNotAllowed(allow=["GET"])      # Allow: GET
+raise MethodNotAllowed(allow=["GET"])  # Allow: GET
+
 
 class BasicAuthRequired(NotAuthenticated):
-    challenge = 'Basic realm="api"'        # WWW-Authenticate: Basic realm="api"
+    challenge = 'Basic realm="api"'  # WWW-Authenticate: Basic realm="api"
 ```
 
 A custom problem type declares its own headers:
@@ -89,8 +92,10 @@ A class missing `title` or `status` raises `TypeError` when defined; mark shared
 
 ```python
 class Audited(Problem, abstract=True):
-    audit_id: str                 # every subclass carries it
-class Throttled(RetryAfter):      # built-in abstract base: retry_after + Retry-After
+    audit_id: str  # every subclass carries it
+
+
+class Throttled(RetryAfter):  # built-in abstract base: retry_after + Retry-After
     title, status = "Throttled", 429
 ```
 
@@ -103,20 +108,19 @@ import httpx2
 from fastapi_rfc9457 import Problem, httpx_raise_hook
 
 
-class OutOfCredit(Problem):      # the type the server declares, shared or re-stated
+class OutOfCredit(Problem):  # the type the server declares, shared or re-stated
     title = "Out of Credit"
     status = 403
     balance: int
 
+
 with httpx2.Client(
-    base_url="http://localhost:8000",
-    event_hooks={
-        "response": [httpx_raise_hook()]
-    }) as client:
+    base_url="http://localhost:8000", event_hooks={"response": [httpx_raise_hook()]}
+) as client:
     try:
         client.get("/charge")
     except OutOfCredit as exc:
-        print(exc.balance)       # extension members round-trip back as typed attributes
+        print(exc.balance)  # extension members round-trip back as typed attributes
 ```
 
 Prefer to parse explicitly? `parse_problem(response)` returns the typed `Problem` (or a generic `ProblemDetail` for an unknown `type`), and `raise_for_problem(response)` raises it (`ProblemError` for an unknown `type`).
@@ -130,13 +134,16 @@ class OutOfCreditError(Exception):
     def __init__(self, detail: str, balance: int) -> None:
         self.detail, self.balance = detail, balance
 
+
 @app.exception_handler(OutOfCreditError)
 async def _(request: Request, exc: OutOfCreditError) -> JSONResponse:
     return JSONResponse({"detail": exc.detail, "balance": exc.balance}, 403)
 
+
 class OutOfCreditBody(BaseModel):
     detail: str
     balance: int
+
 
 @app.get("/charge", responses={403: {"model": OutOfCreditBody}})
 async def charge(token: str | None = None) -> dict:
@@ -150,10 +157,12 @@ async def charge(token: str | None = None) -> dict:
 from fastapi_rfc9457 import NotAuthenticated, Problem  # NotAuthenticated ships built in
 from fastapi_rfc9457.server import problems
 
+
 class OutOfCredit(Problem):
     title = "Out of Credit"
     status = 403
     balance: int
+
 
 @app.get("/charge", responses=problems(NotAuthenticated, OutOfCredit))
 async def charge(token: str | None = None) -> dict:
