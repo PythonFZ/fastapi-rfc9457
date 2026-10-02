@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
-from .builtins import InternalServerError, InvalidParam, ValidationProblem
+from .builtins import BuiltinProblems, InvalidParam
 from .models import PROBLEM_MEDIA_TYPE, ProblemDetail
 from .problem import Problem, UndeclaredHeaderWarning, extension_fields, sent_headers
 from .uris import resolve_type_uri
@@ -71,7 +71,12 @@ def _warn_undeclared_headers(cls: type[Problem], headers: Mapping[str, str]) -> 
             )
 
 
-def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[type, Handler]:
+def make_handlers(
+    *,
+    strip_debug: bool,
+    instance_from_request: bool,
+    builtins: BuiltinProblems,
+) -> dict[type, Handler]:
     """Build the exception-type -> handler mapping for ``add_exception_handler``.
 
     Parameters
@@ -80,6 +85,8 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
         Redact ``detail`` on 500s and the offending ``input`` on 422s.
     instance_from_request : bool
         Auto-fill ``instance`` from the request path when unset.
+    builtins : BuiltinProblems
+        The classes the 422 and 500 handlers answer with.
 
     Returns
     -------
@@ -109,17 +116,11 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
             )
             params.append(param)
         n = len(params)
-        wire = ProblemDetail.model_validate(
-            {
-                "type": resolve_type_uri(request.app, ValidationProblem),
-                "title": ValidationProblem.title,
-                "status": ValidationProblem.status,
-                "detail": f"Request validation failed ({n} error{'' if n == 1 else 's'}).",
-                "instance": _instance(request),
-                "errors": [p.model_dump(exclude_none=True) for p in params],
-            }
+        problem = builtins.validation(
+            errors=params,
+            detail=f"Request validation failed ({n} error{'' if n == 1 else 's'}).",
         )
-        return _respond(wire)
+        return await problem_handler(request, problem)
 
     async def http_handler(request: Request, exc: StarletteHTTPException) -> Response:
         try:
@@ -136,14 +137,8 @@ def make_handlers(*, strip_debug: bool, instance_from_request: bool) -> dict[typ
         return _respond(wire, exc.headers)
 
     async def unhandled_handler(request: Request, exc: Exception) -> Response:
-        wire = ProblemDetail(
-            type=resolve_type_uri(request.app, InternalServerError),
-            title=InternalServerError.title,
-            status=InternalServerError.status,
-            detail=None if strip_debug else f"{type(exc).__name__}: {exc}",
-            instance=_instance(request),
-        )
-        return _respond(wire)
+        problem = builtins.internal(detail=None if strip_debug else f"{type(exc).__name__}: {exc}")
+        return await problem_handler(request, problem)
 
     return cast(
         dict[type, Handler],

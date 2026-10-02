@@ -16,6 +16,7 @@ from fastapi_rfc9457 import (
     TooManyRequests,
     UndeclaredHeaderWarning,
 )
+from fastapi_rfc9457.builtins import BuiltinProblems
 from fastapi_rfc9457.handlers import make_handlers
 from fastapi_rfc9457.openapi import problems, register_problem_components
 
@@ -40,7 +41,9 @@ class Moved(Problem):
 
 def _client(*raises: Problem) -> TestClient:
     app = FastAPI()
-    for exc_type, handler in make_handlers(strip_debug=False, instance_from_request=True).items():
+    for exc_type, handler in make_handlers(
+        strip_debug=False, instance_from_request=True, builtins=BuiltinProblems()
+    ).items():
         app.add_exception_handler(exc_type, handler)
     for i, problem in enumerate(raises):
         app.get(f"/{i}")(_raiser(problem))

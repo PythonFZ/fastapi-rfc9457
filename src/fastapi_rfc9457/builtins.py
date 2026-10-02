@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Mapping
-from typing import Any, ClassVar
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import BaseModel, NonNegativeInt
 
-from .problem import Problem
+from .problem import Problem, extension_fields, require_concrete
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
 
 
 class BadRequest(Problem):
@@ -152,3 +157,72 @@ class ValidationProblem(Problem):
     title = "Unprocessable Content"
     status = 422
     errors: list[InvalidParam]
+
+
+_WIRING_STATE = "_fastapi_rfc9457_wiring"
+
+
+@dataclass(frozen=True)
+class BuiltinProblems:
+    """Problem classes the 422 (``validation``) and 500 (``internal``) handlers answer with.
+
+    Raises
+    ------
+    TypeError
+        If a class is outside its default's hierarchy, abstract, sets another
+        ``status``, or adds an extension field without a default.
+    """
+
+    validation: type[ValidationProblem] = ValidationProblem
+    internal: type[InternalServerError] = InternalServerError
+
+    def __post_init__(self) -> None:
+        for name, cls, default in (
+            ("validation", self.validation, ValidationProblem),
+            ("internal", self.internal, InternalServerError),
+        ):
+            if not (isinstance(cls, type) and issubclass(cls, default)):
+                raise TypeError(f"{name}= takes a subclass of {default.__name__}; got {cls!r}.")
+            require_concrete(cls)
+            if cls.status != default.status:
+                raise TypeError(
+                    f"{name}={cls.__name__} answers with status {default.status}; "
+                    f"it sets {cls.status}."
+                )
+            inherited = extension_fields(default).keys()
+            required = [
+                field.name
+                for field in dataclasses.fields(cls)
+                if field.name not in inherited
+                and field.default is dataclasses.MISSING
+                and field.default_factory is dataclasses.MISSING
+            ]
+            if required:
+                raise TypeError(
+                    f"{name}={cls.__name__} needs defaults for {sorted(required)}; "
+                    f"the handler fills the fields of {default.__name__}."
+                )
+
+    @classmethod
+    def of(cls, app: FastAPI) -> BuiltinProblems:
+        """Return the classes stored on ``app``, or the defaults."""
+        wiring: Wiring | None = getattr(app.state, _WIRING_STATE, None)
+        return cls() if wiring is None else wiring.builtins
+
+
+@dataclass(frozen=True)
+class Wiring:
+    """The options ``add_problem_handlers`` wired an app with."""
+
+    builtins: BuiltinProblems
+    strip_debug: bool
+    instance_from_request: bool
+
+    def options(self) -> dict[str, object]:
+        """Return each option by its ``add_problem_handlers`` keyword."""
+        return {
+            "strip_debug": self.strip_debug,
+            "instance_from_request": self.instance_from_request,
+            "validation": self.builtins.validation,
+            "internal": self.builtins.internal,
+        }
